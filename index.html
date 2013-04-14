@@ -56,6 +56,11 @@
             }, millisPerChange);
         });
 
+        var oldLine = L.polyline([], {'opacity': 0.3});
+        oldLine.addTo(map);
+        var newLine = L.polyline([]);
+        newLine.addTo(map);
+
         var drawLineChange = function(change) {
             // Zoom to the area in question
             var southwest = [ change.neu.bounds[2], change.neu.bounds[3] ];
@@ -63,26 +68,21 @@
             var bounds = [ southwest, northeast ];
             map.fitBounds(bounds);
 
+            // Remove the previous lines, if any
+            oldLine.setLatLngs([]);
+            newLine.setLatLngs([]);
+
             // Draw the old way in the background
             if ('old' in change) {
-                var oldPoints = change.old.linestring;
-                var oldLine = L.polyline(oldPoints, {'opacity': 0.3});
-                oldLine.addTo(map);
+                oldLine.setLatLngs(change.old.linestring);
             }
 
             // Draw the new way in 1.5 seconds, node by node
-            var newLine = L.polyline([]);
-            newLine.addTo(map);
-
             var millisPerChange = 1500;
             var nodeAddInterval = setInterval(function() {
                 var nextPoint = change.neu.linestring.pop();
                 if (nextPoint == null) {
                     clearInterval(nodeAddInterval);
-                    map.removeLayer(newLine);
-                    if (oldLine != null) {
-                        map.removeLayer(oldLine);
-                    }
                 } else {
                     newLine.addLatLng(nextPoint);
                 }
