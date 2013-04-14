@@ -30,8 +30,6 @@
         }
         #changeset_info {
             font-family: Arial,sans-serif;
-            position: absolute;
-            top: 250px;
             height: 250px;
         }
     </style>
@@ -39,13 +37,15 @@
 <body>
     <div id="context_panel">
         <div id="overview_map"></div>
-        <div id="changeset_info">Boop</div>
+        <div id="pause_area"><a id="pause_button" onClick="togglePause();return false;" href="#">Pause</a></div>
+        <div id="changeset_info"></div>
     </div>
     <div id="map"></div>
     <script src="http://cdn.leafletjs.com/leaflet-0.5/leaflet.js"></script>
     <script src="./Bing.js"></script>
     <script src="./osmstream.js"></script>
     <script>
+        var paused = false;
 
         var map = L.map('map', {'zoomControl': false}).setView([51.505, -0.09], 13);
         var bing = new L.BingLayer("Arzdiw4nlOJzRwOz__qailc8NiR31Tt51dN2D7cm57NrnceZnCpgOkmJhNpGoppU", "Aerial")
@@ -85,6 +85,11 @@
             var millisPerChange = (60000 / filteredChanges.length);
             var wayAddInterval = setInterval(function() {
                 var nextChange = filteredChanges.pop();
+
+                if (paused) {
+                    return;
+                }
+
                 if (nextChange == null) {
                     clearInterval(wayAddInterval);
                 } else {
@@ -133,6 +138,18 @@
                     newLine.addLatLng(nextPoint);
                 }
             }, (millisPerChange / change.neu.linestring.length));
+        }
+
+        var togglePause = function() {
+            paused = !paused;
+
+            // TODO Stop and start the osmstream?
+
+            if (paused) {
+                document.getElementById('pause_button').innerHTML = "Continue";
+            } else {
+                document.getElementById('pause_button').innerHTML = "Pause";
+            }
         }
 
     </script>
