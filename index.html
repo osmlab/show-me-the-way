@@ -6,9 +6,23 @@
 
     <link rel="stylesheet" href="http://cdn.leafletjs.com/leaflet-0.5/leaflet.css" />
     <!--[if lte IE 8]><link rel="stylesheet" href="http://cdn.leafletjs.com/leaflet-0.5/leaflet.ie.css" /><![endif]-->
+
+    <style type="text/css">
+        html {
+            height: 100%;
+        }
+        body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+        #map {
+            height: 100%;
+        }
+    </style>
 </head>
 <body>
-    <div id="map" style="width: 600px; height: 400px"></div>
+    <div id="map"></div>
     <script src="http://cdn.leafletjs.com/leaflet-0.5/leaflet.js"></script>
     <script src="./Bing.js"></script>
     <script src="./osmstream.js"></script>
@@ -45,7 +59,6 @@
             filteredChanges = filteredChanges.slice(0, changesToShowEveryMinute);
 
             var millisPerChange = (60000 / filteredChanges.length);
-            console.log("About to show " + filteredChanges.length + " changes once every " + millisPerChange + "ms.");
             var wayAddInterval = setInterval(function() {
                 var nextChange = filteredChanges.pop();
                 if (nextChange == null) {
