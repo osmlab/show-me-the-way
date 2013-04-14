@@ -72,6 +72,13 @@ var osmStream = (function osmMinutely() {
             if (nodes.length > 0) {
                 o.linestring = nodes;
             }
+
+            var tgs = x.getElementsByTagName('tag');
+            var tags = {};
+            for (var j = 0; j < tgs.length; j++) {
+                tags[tgs[j].getAttribute("k")] = tgs[j].getAttribute("v");
+            }
+            o.tags = tags;
         }
         return o;
     }
