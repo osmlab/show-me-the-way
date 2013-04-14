@@ -28,12 +28,18 @@
         #overview_map {
             height: 250px;
         }
+        #changeset_info {
+            font-family: Arial,sans-serif;
+            position: absolute;
+            top: 250px;
+            height: 250px;
+        }
     </style>
 </head>
 <body>
     <div id="context_panel">
         <div id="overview_map"></div>
-        <div id="changeset_info"></div>
+        <div id="changeset_info">Boop</div>
     </div>
     <div id="map"></div>
     <script src="http://cdn.leafletjs.com/leaflet-0.5/leaflet.js"></script>
@@ -103,6 +109,14 @@
             // Remove the previous lines, if any
             oldLine.setLatLngs([]);
             newLine.setLatLngs([]);
+
+            // Show information about the change
+            var change_html = '<p>User <a href="http://osm.org/user/' + change.neu.user + '">' + change.neu.user + '</a> added way in changeset <a href="http://osm.org/browse/changeset/' + change.neu.changeset + '">' + change.neu.changeset + '</a>.</p><br/><p>';
+            for (var k in change.neu.tags) {
+                change_html += '<span class="tag_key">' + k + '</span>=<span class="tag_value">' + change.neu.tags[k] + '</span><br/>';
+            }
+            change_html += '</p>';
+            document.getElementById('changeset_info').innerHTML = change_html;
 
             // Draw the old way in the background
             if ('old' in change) {
