@@ -11,6 +11,7 @@
     <div id="map" style="width: 600px; height: 400px"></div>
     <script src="http://cdn.leafletjs.com/leaflet-0.5/leaflet.js"></script>
     <script src="./Bing.js"></script>
+    <script src="./osmstream.js"></script>
     <script>
 
         var map = L.map('map').setView([51.505, -0.09], 13);
@@ -18,12 +19,75 @@
         var bing = new L.BingLayer("Arzdiw4nlOJzRwOz__qailc8NiR31Tt51dN2D7cm57NrnceZnCpgOkmJhNpGoppU", "Aerial")
             .addTo(map);
 
-        var line = L.polygon([
-            [51.509, -0.08],
-            [51.503, -0.06],
-            [51.51, -0.047]
-        ]);
-        line.addTo(map);
+        // The number of changes to show per minute
+        var changesToShowEveryMinute = 30;
+
+        osmStream.runFn(function(err, data) {
+            var filteredChanges = [];
+
+            // Only include way creates or modifies
+            for (var i = 0; i < data.length; i++) {
+                if (data[i].type == 'delete') {
+                    continue;
+                }
+
+                if (data[i].neu.type == 'way') {
+                    filteredChanges.push(data[i]);
+                }
+            }
+
+            // Sort by "interestingness". For now just the number of ways?
+            filteredChanges.sort(function(a,b) {
+                return b.neu.linestring.length - a.neu.linestring.length;
+            });
+
+            // Only pick the 30 most interestin changes so we can spend 2 seconds on each change
+            filteredChanges = filteredChanges.slice(0, changesToShowEveryMinute);
+
+            var millisPerChange = (60000 / filteredChanges.length);
+            console.log("About to show " + filteredChanges.length + " changes once every " + millisPerChange + "ms.");
+            var wayAddInterval = setInterval(function() {
+                var nextChange = filteredChanges.pop();
+                if (nextChange == null) {
+                    clearInterval(wayAddInterval);
+                } else {
+                    drawLineChange(nextChange);
+                }
+            }, millisPerChange);
+        });
+
+        var drawLineChange = function(change) {
+            // Zoom to the area in question
+            var southwest = [ change.neu.bounds[2], change.neu.bounds[3] ];
+            var northeast = [ change.neu.bounds[0], change.neu.bounds[1] ];
+            var bounds = [ southwest, northeast ];
+            map.fitBounds(bounds);
+
+            // Draw the old way in the background
+            if ('old' in change) {
+                var oldPoints = change.old.linestring;
+                var oldLine = L.polyline(oldPoints, {'opacity': 0.3});
+                oldLine.addTo(map);
+            }
+
+            // Draw the new way in 1.5 seconds, node by node
+            var newLine = L.polyline([]);
+            newLine.addTo(map);
+
+            var millisPerChange = 1500;
+            var nodeAddInterval = setInterval(function() {
+                var nextPoint = change.neu.linestring.pop();
+                if (nextPoint == null) {
+                    clearInterval(nodeAddInterval);
+                    map.removeLayer(newLine);
+                    if (oldLine != null) {
+                        map.removeLayer(oldLine);
+                    }
+                } else {
+                    newLine.addLatLng(nextPoint);
+                }
+            }, (millisPerChange / change.neu.linestring.length));
+        }
 
     </script>
 </body>
