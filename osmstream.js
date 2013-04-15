@@ -52,7 +52,8 @@ var osmStream = (function osmMinutely() {
             lon: +x.getAttribute('lon'),
             user: x.getAttribute('user'),
             timestamp: x.getAttribute('timestamp'),
-            changeset: +x.getAttribute('changeset')
+            changeset: +x.getAttribute('changeset'),
+            id: +x.getAttribute('id')
         };
         if (o.type == 'way') {
             var bounds = get(x, ['bounds']);
