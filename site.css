@@ -1,0 +1,64 @@
+#map {
+    position:absolute;
+    right:300px;
+    left:0;
+    bottom:0;
+    top:0;
+    background:#000;
+}
+
+#context_panel {
+    position:absolute;
+    width: 300px;
+    right:0;
+    bottom:0;
+    top:0;
+    border-left:1px solid #222;
+}
+
+#overview_map {
+    height: 250px;
+    background:#fff;
+}
+
+.leaflet-control-attribution {
+    box-shadow:none !important;
+    background:#f1eee8 !important;
+    color:#777;
+}
+
+button {
+    background:#ddd;
+    color:#fff;
+    padding:10px;
+    font:inherit;
+    width:100%;
+    border-width:0;
+    border-radius:10px;
+    cursor:pointer;
+}
+
+button:hover {
+    background:#77c453;
+}
+
+#pause_area {
+    position:absolute;
+    bottom:0;
+    right:0;
+    width:300px;
+    padding:10px;
+}
+
+a.icon-user {
+    padding-left:20px;
+    background:url(user.png) no-repeat;
+    background-size:15px 15px;
+}
+
+h1 {
+    padding:10px;
+    color:#666;
+    margin:0;
+    font:40px/45px 'Helvetica', sans-serif;
+}

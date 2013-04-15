@@ -3,155 +3,27 @@
 <head>
     <title>Show Me The Way</title>
     <meta charset="utf-8" />
-
     <link rel="stylesheet" href="http://cdn.leafletjs.com/leaflet-0.5/leaflet.css" />
+    <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="site.css" />
     <!--[if lte IE 8]><link rel="stylesheet" href="http://cdn.leafletjs.com/leaflet-0.5/leaflet.ie.css" /><![endif]-->
-
-    <style type="text/css">
-        html {
-            height: 100%;
-        }
-        body {
-            height: 100%;
-            margin: 0;
-            padding: 0;
-        }
-        #map {
-            height: 100%;
-            width: 80%;
-            float: left;
-        }
-        #context_panel {
-            width: 20%;
-            float: right;
-        }
-        #overview_map {
-            height: 250px;
-        }
-        #changeset_info {
-            font-family: Arial,sans-serif;
-            height: 250px;
-        }
-    </style>
 </head>
 <body>
     <div id="context_panel">
+        <h1>See <a href='http://www.openstreetmap.org/'>OpenStreetMap</a>
+            improving in real time</h1>
         <div id="overview_map"></div>
-        <div id="pause_area"><a id="pause_button" onClick="togglePause();return false;" href="#">Pause</a></div>
-        <div id="changeset_info"></div>
+        <div class='pad1'>
+            <div id="changeset_info"></div>
+            <div id="pause_area">
+                <button id="pause_button" onClick="togglePause();return false;">Pause</button>
+            </div>
+        </div>
     </div>
     <div id="map"></div>
     <script src="http://cdn.leafletjs.com/leaflet-0.5/leaflet.js"></script>
     <script src="./Bing.js"></script>
     <script src="./osmstream.js"></script>
-    <script>
-        var paused = false;
-
-        var map = L.map('map', {'zoomControl': false}).setView([51.505, -0.09], 13);
-        var bing = new L.BingLayer("Arzdiw4nlOJzRwOz__qailc8NiR31Tt51dN2D7cm57NrnceZnCpgOkmJhNpGoppU", "Aerial")
-            .addTo(map);
-
-        var overview_map = L.map('overview_map', {'zoomControl': false}).setView([51.505, -0.09], 4);
-        var osmUrl='http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
-        var osmAttrib='Map data © OpenStreetMap contributors';
-        var osm = new L.TileLayer(osmUrl, {minZoom: 8, maxZoom: 12, attribution: osmAttrib})
-            .addTo(overview_map);
-
-        // The number of changes to show per minute
-        var changesToShowEveryMinute = 30;
-
-        osmStream.runFn(function(err, data) {
-            var filteredChanges = [];
-
-            // Only include way creates or modifies
-            for (var i = 0; i < data.length; i++) {
-                if (data[i].type == 'delete') {
-                    continue;
-                }
-
-                if (data[i].neu.type == 'way') {
-                    filteredChanges.push(data[i]);
-                }
-            }
-
-            // Sort by "interestingness". For now just the number of ways?
-            filteredChanges.sort(function(a,b) {
-                return b.neu.linestring.length - a.neu.linestring.length;
-            });
-
-            // Only pick the 30 most interestin changes so we can spend 2 seconds on each change
-            filteredChanges = filteredChanges.slice(0, changesToShowEveryMinute);
-
-            var millisPerChange = (60000 / filteredChanges.length);
-            var wayAddInterval = setInterval(function() {
-                var nextChange = filteredChanges.pop();
-
-                if (paused) {
-                    return;
-                }
-
-                if (nextChange == null) {
-                    clearInterval(wayAddInterval);
-                } else {
-                    drawLineChange(nextChange);
-                }
-            }, millisPerChange);
-        });
-
-        var oldLine = L.polyline([], {'opacity': 0.3});
-        oldLine.addTo(map);
-        var newLine = L.polyline([]);
-        newLine.addTo(map);
-
-        var drawLineChange = function(change) {
-            // Zoom to the area in question
-            var southwest = new L.LatLng(change.neu.bounds[2], change.neu.bounds[3]);
-            var northeast = new L.LatLng(change.neu.bounds[0], change.neu.bounds[1]);
-            var bounds = new L.LatLngBounds(southwest, northeast);
-            map.fitBounds(bounds);
-            overview_map.panTo(bounds.getCenter());
-
-            // Remove the previous lines, if any
-            oldLine.setLatLngs([]);
-            newLine.setLatLngs([]);
-
-            // Show information about the change
-            var change_html = '<p>User <a href="http://osm.org/user/' + change.neu.user + '">' + change.neu.user + '</a> added way <a href="http://osm.org/browse/' + change.neu.type + '/' + change.neu.id + '">' + change.neu.id + '</a> in changeset <a href="http://osm.org/browse/changeset/' + change.neu.changeset + '">' + change.neu.changeset + '</a>.</p><br/><p>';
-            for (var k in change.neu.tags) {
-                change_html += '<span class="tag_key">' + k + '</span>=<span class="tag_value">' + change.neu.tags[k] + '</span><br/>';
-            }
-            change_html += '</p>';
-            document.getElementById('changeset_info').innerHTML = change_html;
-
-            // Draw the old way in the background
-            if ('old' in change) {
-                oldLine.setLatLngs(change.old.linestring);
-            }
-
-            // Draw the new way in 1.5 seconds, node by node
-            var millisPerChange = 1500;
-            var nodeAddInterval = setInterval(function() {
-                var nextPoint = change.neu.linestring.pop();
-                if (nextPoint == null) {
-                    clearInterval(nodeAddInterval);
-                } else {
-                    newLine.addLatLng(nextPoint);
-                }
-            }, (millisPerChange / change.neu.linestring.length));
-        }
-
-        var togglePause = function() {
-            paused = !paused;
-
-            // TODO Stop and start the osmstream?
-
-            if (paused) {
-                document.getElementById('pause_button').innerHTML = "Continue";
-            } else {
-                document.getElementById('pause_button').innerHTML = "Pause";
-            }
-        }
-
-    </script>
+    <script src="site.js"></script>
 </body>
 </html>
