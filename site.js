@@ -17,7 +17,7 @@ var paused = false,
         maxZoom: 12,
         attribution: 'Map data © OpenStreetMap contributors'
     }).addTo(overview_map),
-    changesToShowEveryMinute = 30;
+    changesToShowEveryMinute = 20;
 
 // Remove Leaflet shoutouts
 map.attributionControl.setPrefix('');
