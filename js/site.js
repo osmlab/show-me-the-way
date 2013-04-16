@@ -56,7 +56,7 @@ osmStream.runFn(function(err, data) {
         wayAddInterval = setInterval(function() {
             var nextChange = filteredChanges.pop();
             if (paused) {
-            } else if (nextChange === null) {
+            } else if (nextChange === undefined) {
                 clearInterval(wayAddInterval);
             } else {
                 drawLineChange(nextChange);
