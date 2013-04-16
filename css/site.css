@@ -50,10 +50,14 @@ button:hover {
     padding:10px;
 }
 
+#changeset_info p {
+    font-size:20px;
+}
+
 a.icon-user {
-    padding-left:20px;
+    padding-left:30px;
     background:url(user.png) no-repeat;
-    background-size:15px 15px;
+    background-size:25px 25px;
 }
 
 h1 {

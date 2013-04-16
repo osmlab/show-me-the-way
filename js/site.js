@@ -1,9 +1,12 @@
 var paused = false,
+
     map = L.map('map', {
         zoomControl: false
     }).setView([51.505, -0.09], 13),
+
     bing = new L.BingLayer('Arzdiw4nlOJzRwOz__qailc8NiR31Tt51dN2D7cm57NrnceZnCpgOkmJhNpGoppU', 'Aerial')
         .addTo(map),
+
     overview_map = L.map('overview_map', {
         zoomControl: false,
         dragging: false,
@@ -12,58 +15,54 @@ var paused = false,
         doubleClickZoom: false,
         boxZoom: false
     }).setView([51.505, -0.09], 4),
+
     osm = new L.TileLayer('http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         minZoom: 8,
         maxZoom: 12,
         attribution: 'Map data © OpenStreetMap contributors'
     }).addTo(overview_map),
-    changesToShowEveryMinute = 20;
+
+    changesToShowEveryMinute = 20,
+
+    oldLine = L.polyline([], {
+        opacity: 0.3
+    }).addTo(map),
+
+    newLine = L.polyline([], {
+        opacity: 1,
+        color: '#FF0099'
+    }).addTo(map),
+
+    millisPerChange = 1500,
+    changeset_info = document.getElementById('changeset_info'),
+    changeset_tmpl = _.template(document.getElementById('changeset-template').innerHTML);
 
 // Remove Leaflet shoutouts
 map.attributionControl.setPrefix('');
 overview_map.attributionControl.setPrefix('');
 
 // The number of changes to show per minute
-
 osmStream.runFn(function(err, data) {
-    var filteredChanges = [];
-
     // Only include way creates or modifies
-    for (var i = 0; i < data.length; i++) {
-        if (data[i].neu.type === 'way' && data[i].type !== 'delete') {
-            filteredChanges.push(data[i]);
-        }
-    }
-
-    // Sort by "interestingness". For now just the number of ways?
+    var filteredChanges = _.chain(data).filter(function(f) {
+        return f.neu && f.neu.type === 'way' && f.type !== 'delete';
+    }).sortBy(function(f) {
+        // Sort by "interestingness". For now just the number of ways?
+        return f.neu.linestring.length;
     // Only pick the 30 most interestin changes so we can spend 2 seconds on each change
-    filteredChanges = filteredChanges.sort(function(a, b) {
-            return b.neu.linestring.length - a.neu.linestring.length;
-        }).slice(0, changesToShowEveryMinute),
-        millisPerChange = (60000 / filteredChanges.length),
+    }).value().slice(0, changesToShowEveryMinute);
+
+    var millisPerChange = (60000 / filteredChanges.length),
         wayAddInterval = setInterval(function() {
             var nextChange = filteredChanges.pop();
-
-            if (paused) return;
-
-            if (nextChange === null) {
+            if (paused) {
+            } else if (nextChange === null) {
                 clearInterval(wayAddInterval);
             } else {
                 drawLineChange(nextChange);
             }
         }, millisPerChange);
 });
-
-var oldLine = L.polyline([], { opacity: 0.3}).addTo(map),
-    newLine = L.polyline([], { opacity: 1, color: '#FF0099' }).addTo(map);
-
-function urlUser(_) {
-    return 'http://osm.org/user/' + _;
-}
-
-function urlWay(type, id) {
-    return 'http://osm.org/browse/' + type + '/' + id;
-}
 
 function drawLineChange(change) {
     // Zoom to the area in question
@@ -78,15 +77,7 @@ function drawLineChange(change) {
     oldLine.setLatLngs([]);
     newLine.setLatLngs([]);
 
-    // Show information about the change
-    var change_html = '<p><a class="icon-user" href="' + urlUser(change.neu.user) + '">' + change.neu.user + '</a>' +
-        ' added way <a href="' + urlWay(change.neu.type, change.neu.id) + '">' + change.neu.id + '</a>' +
-        ' in changeset <a href="http://osm.org/browse/changeset/' + change.neu.changeset + '">' + change.neu.changeset + '</a>.</p><br/><p>';
-    for (var k in change.neu.tags) {
-        change_html += '<span class="tag_key">' + k + '</span>=<span class="tag_value">' + change.neu.tags[k] + '</span><br/>';
-    }
-    change_html += '</p>';
-    document.getElementById('changeset_info').innerHTML = change_html;
+    changeset_info.innerHTML = changeset_tmpl({ change: change });
 
     // Draw the old way in the background
     if ('old' in change) {
@@ -94,7 +85,6 @@ function drawLineChange(change) {
     }
 
     // Draw the new way in 1.5 seconds, node by node
-    var millisPerChange = 1500;
     var nodeAddInterval = setInterval(function() {
         var nextPoint = change.neu.linestring.pop();
         if (nextPoint === undefined) {
@@ -108,9 +98,5 @@ function drawLineChange(change) {
 function togglePause() {
     paused = !paused;
     // TODO Stop and start the osmstream?
-    if (paused) {
-        document.getElementById('pause_button').innerHTML = "Continue";
-    } else {
-        document.getElementById('pause_button').innerHTML = "Pause";
-    }
+    document.getElementById('pause_button').innerHTML = paused ? 'Continue' : 'Pause';
 }

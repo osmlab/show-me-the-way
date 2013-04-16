@@ -4,8 +4,8 @@
     <title>Show Me The Way</title>
     <meta charset="utf-8" />
     <link rel="stylesheet" href="http://cdn.leafletjs.com/leaflet-0.5/leaflet.css" />
-    <link rel="stylesheet" href="style.css" />
-    <link rel="stylesheet" href="site.css" />
+    <link rel="stylesheet" href="css/style.css" />
+    <link rel="stylesheet" href="css/site.css" />
     <!--[if lte IE 8]><link rel="stylesheet" href="http://cdn.leafletjs.com/leaflet-0.5/leaflet.ie.css" /><![endif]-->
 </head>
 <body>
@@ -21,9 +21,17 @@
         </div>
     </div>
     <div id="map"></div>
+    <script id='changeset-template' type='template'>
+<p><a class="icon-user" href="//osm.org/user/<%= change.neu.user %>"><%= change.neu.user %></a>
+     added <a href="//osm.org/browse/<%= change.neu.type %>/<%= change.neu.id %>">#<%= change.neu.id %></a>
+    in changeset <a href="http://osm.org/browse/changeset/<%= change.neu.changeset %>">
+        <%= change.neu.changeset %>
+    </a>.</p>
+    </script>
     <script src="http://cdn.leafletjs.com/leaflet-0.5/leaflet.js"></script>
-    <script src="./Bing.js"></script>
-    <script src="./osmstream.js"></script>
-    <script src="site.js"></script>
+    <script src="js/Bing.js"></script>
+    <script src="js/underscore-min.js"></script>
+    <script src="js/osmstream.js"></script>
+    <script src="js/site.js"></script>
 </body>
 </html>
