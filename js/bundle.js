@@ -1,5 +1,115 @@
-(function(e){if("function"==typeof bootstrap)bootstrap("osmstream",e);else if("object"==typeof exports)module.exports=e();else if("function"==typeof define&&define.amd)define(e);else if("undefined"!=typeof ses){if(!ses.ok())return;ses.makeOsmStream=e}else"undefined"!=typeof window?window.osmStream=e():global.osmStream=e()})(function(){var define,ses,bootstrap,module,exports;
-return (function(e,t,n){function r(n,i){if(!t[n]){if(!e[n]){var s=typeof require=="function"&&require;if(!i&&s)return s(n,!0);throw new Error("Cannot find module '"+n+"'")}var o=t[n]={exports:{}};e[n][0](function(t){var i=e[n][1][t];return r(i?i:t)},o,o.exports)}return t[n].exports}for(var i=0;i<n.length;i++)r(n[i]);return r})({1:[function(require,module,exports){
+;(function(e,t,n){function r(n,i){if(!t[n]){if(!e[n]){var s=typeof require=="function"&&require;if(!i&&s)return s(n,!0);throw new Error("Cannot find module '"+n+"'")}var o=t[n]={exports:{}};e[n][0](function(t){var i=e[n][1][t];return r(i?i:t)},o,o.exports)}return t[n].exports}for(var i=0;i<n.length;i++)r(n[i]);return r})({1:[function(require,module,exports){
+var osmStream = require('osm-stream');
+
+var bboxString;
+if (location.hash) {
+    bboxString = location.hash.replace('#', '');
+}
+
+var paused = false,
+
+    map = L.map('map', {
+        zoomControl: false
+    }).setView([51.505, -0.09], 13),
+
+    bing = new L.BingLayer('Arzdiw4nlOJzRwOz__qailc8NiR31Tt51dN2D7cm57NrnceZnCpgOkmJhNpGoppU', 'Aerial')
+        .addTo(map),
+
+    overview_map = L.map('overview_map', {
+        zoomControl: false,
+        dragging: false,
+        touchZoom: false,
+        scrollWheelZoom: false,
+        doubleClickZoom: false,
+        boxZoom: false
+    }).setView([51.505, -0.09], 4),
+
+    osm = new L.TileLayer('http://a.tiles.mapbox.com/v3/tmcw.map-d11l16t9/{z}/{x}/{y}.jpg70', {
+        minZoom: 8,
+        maxZoom: 12,
+        attribution: '<a href="http://mapbox.com/about/maps/">Terms &amp; Conditions</a>'
+    }).addTo(overview_map),
+
+    changesToShowEveryMinute = 20,
+
+    // oldLine = L.polyline([], {
+    //     opacity: 0.3
+    // }).addTo(map),
+
+    newLine = L.polyline([], {
+        opacity: 1,
+        color: '#FF0099'
+    }).addTo(map),
+
+    millisPerChange = 1500,
+    changeset_info = document.getElementById('changeset_info'),
+    changeset_tmpl = _.template(document.getElementById('changeset-template').innerHTML);
+
+// Remove Leaflet shoutouts
+map.attributionControl.setPrefix('');
+overview_map.attributionControl.setPrefix('');
+
+// The number of changes to show per minute
+osmStream.runFn(function(err, data) {
+    // Only include way creates or modifies
+    var filteredChanges = _.chain(data).filter(function(f) {
+        return f.neu && f.neu.type === 'way' && f.type !== 'delete' && f.neu.linestring;
+    }).sortBy(function(f) {
+        // Sort by "interestingness". For now just the number of ways?
+        return f.neu.linestring.length;
+    // Only pick the 30 most interestin changes so we can spend 2 seconds on each change
+    }).value().slice(0, changesToShowEveryMinute);
+
+    var millisPerChange = (60000 / filteredChanges.length),
+        wayAddInterval = setInterval(function() {
+            var nextChange = filteredChanges.pop();
+            if (paused) {
+            } else if (nextChange === undefined) {
+                clearInterval(wayAddInterval);
+            } else {
+                drawLineChange(nextChange);
+            }
+        }, millisPerChange);
+}, 60 * 1000, 1, bboxString);
+
+function drawLineChange(change) {
+    // Zoom to the area in question
+    var bounds = new L.LatLngBounds(
+        new L.LatLng(change.neu.bounds[2], change.neu.bounds[3]),
+        new L.LatLng(change.neu.bounds[0], change.neu.bounds[1]));
+
+    map.fitBounds(bounds);
+    overview_map.panTo(bounds.getCenter());
+
+    // Remove the previous lines, if any
+    // oldLine.setLatLngs([]);
+    newLine.setLatLngs([]);
+
+    changeset_info.innerHTML = changeset_tmpl({ change: change });
+
+    // Draw the old way in the background
+    // if ('old' in change) {
+    //     oldLine.setLatLngs(change.old.linestring);
+    // }
+
+    // Draw the new way in 1.5 seconds, node by node
+    var nodeAddInterval = setInterval(function() {
+        var nextPoint = change.neu.linestring.pop();
+        if (nextPoint === undefined) {
+            clearInterval(nodeAddInterval);
+        } else {
+            newLine.addLatLng(nextPoint);
+        }
+    }, (millisPerChange / change.neu.linestring.length));
+}
+
+function togglePause() {
+    paused = !paused;
+    // TODO Stop and start the osmstream?
+    document.getElementById('pause_button').innerHTML = paused ? 'Continue' : 'Pause';
+}
+
+},{"osm-stream":2}],2:[function(require,module,exports){
 var reqwest = require('reqwest'),
     qs = require('qs'),
     through = require('through');
@@ -16,9 +126,9 @@ var osmStream = (function osmMinutely() {
         return baseUrl + minuteStatePath;
     }
 
-    function changeUrl(id) {
+    function changeUrl(id, bbox) {
         return baseUrl + changePath + qs.stringify({
-            id: id, info: 'no', bbox: '-180,-90,180,90'
+            id: id, info: 'no', bbox: bbox || '-180,-90,180,90'
         });
     }
 
@@ -33,9 +143,9 @@ var osmStream = (function osmMinutely() {
         });
     }
 
-    function requestChangeset(state, cb) {
+    function requestChangeset(state, cb, bbox) {
         reqwest({
-            url: changeUrl(state),
+            url: changeUrl(state, bbox),
             crossOrigin: true,
             type: 'xml',
             success: function(res) {
@@ -93,7 +203,7 @@ var osmStream = (function osmMinutely() {
         }
     }
 
-    function run(id, cb) {
+    function run(id, cb, bbox) {
         requestChangeset(id, function(err, xml) {
             if (err) return cb([]);
             var actions = xml.getElementsByTagName('action'), a;
@@ -103,10 +213,10 @@ var osmStream = (function osmMinutely() {
                 a = actions[i];
                 o.type = a.getAttribute('type');
                 if (o.type == 'modify') {
-                    o.old = parseNode(get(get(a, 'old'), ['node', 'way']));
-                    o.neu = parseNode(get(get(a, 'new'), ['node', 'way']));
+                    o.old = parseNode(get(get(a, ['old']), ['node', 'way']));
+                    o.neu = parseNode(get(get(a, ['new']), ['node', 'way']));
                 } else if (o.type == 'delete') {
-                    o.old = parseNode(get(get(a, 'old'), ['node', 'way']));
+                    o.old = parseNode(get(get(a, ['old']), ['node', 'way']));
                 } else {
                     o.neu = parseNode(get(a, ['node', 'way']));
                 }
@@ -115,19 +225,19 @@ var osmStream = (function osmMinutely() {
                 }
             }
             cb(items);
-        });
+        }, bbox);
     }
 
-    s.once = function(cb) {
+    s.once = function(cb, bbox) {
         requestState(function(err, state) {
             var stream = through(function write(data) {
                 cb(null, data);
             });
-            run(state, stream.write);
+            run(state, stream.write, bbox);
         });
     };
 
-    s.run = function(cb, duration, dir) {
+    s.run = function(cb, duration, dir, bbox) {
         dir = dir || 1;
         duration = duration || 60 * 1000;
         var cancel = false;
@@ -152,14 +262,14 @@ var osmStream = (function osmMinutely() {
                     write(items);
                     state += dir;
                     if (!cancel) setTimeout(iterate, duration);
-                });
+                }, bbou);
             }
             iterate();
         });
         return { cancel: setCancel };
     };
 
-    s.runFn = function(cb, duration, dir) {
+    s.runFn = function(cb, duration, dir, bbox) {
         dir = dir || 1;
         duration = duration || 60 * 1000;
         function setCancel() { cancel = true; }
@@ -173,7 +283,7 @@ var osmStream = (function osmMinutely() {
                     write(items);
                     state += dir;
                     if (!cancel) setTimeout(iterate, duration);
-                });
+                }, bbox);
             }
             iterate();
         });
@@ -185,7 +295,7 @@ var osmStream = (function osmMinutely() {
 
 module.exports = osmStream;
 
-},{"reqwest":2,"through":3,"qs":4}],2:[function(require,module,exports){
+},{"reqwest":3,"through":4,"qs":5}],3:[function(require,module,exports){
 /*!
   * Reqwest! A general purpose XHR connection manager
   * (c) Dustin Diaz 2012
@@ -672,7 +782,7 @@ module.exports = osmStream;
   return reqwest
 });
 
-},{}],5:[function(require,module,exports){
+},{}],6:[function(require,module,exports){
 // shim for using process in browser
 
 var process = module.exports = {};
@@ -726,7 +836,7 @@ process.chdir = function (dir) {
     throw new Error('process.chdir is not supported');
 };
 
-},{}],3:[function(require,module,exports){
+},{}],4:[function(require,module,exports){
 (function(process){var Stream = require('stream')
 
 // through
@@ -734,14 +844,12 @@ process.chdir = function (dir) {
 // a stream that does nothing but re-emit the input.
 // useful for aggregating a series of changing but not ending streams into one stream)
 
-
-
 exports = module.exports = through
 through.through = through
 
 //create a readable writable stream.
 
-function through (write, end) {
+function through (write, end, opts) {
   write = write || function (data) { this.queue(data) }
   end = end || function () { this.queue(null) }
 
@@ -749,6 +857,9 @@ function through (write, end) {
   var stream = new Stream()
   stream.readable = stream.writable = true
   stream.paused = false
+
+//  stream.autoPause   = !(opts && opts.autoPause   === false)
+  stream.autoDestroy = !(opts && opts.autoDestroy === false)
 
   stream.write = function (data) {
     write.call(this, data)
@@ -779,7 +890,7 @@ function through (write, end) {
 
   stream.on('end', function () {
     stream.readable = false
-    if(!stream.writable)
+    if(!stream.writable && stream.autoDestroy)
       process.nextTick(function () {
         stream.destroy()
       })
@@ -788,7 +899,7 @@ function through (write, end) {
   function _end () {
     stream.writable = false
     end.call(stream)
-    if(!stream.readable)
+    if(!stream.readable && stream.autoDestroy)
       stream.destroy()
   }
 
@@ -813,12 +924,13 @@ function through (write, end) {
   stream.pause = function () {
     if(stream.paused) return
     stream.paused = true
-    stream.emit('pause')
     return stream
   }
+
   stream.resume = function () {
     if(stream.paused) {
       stream.paused = false
+      stream.emit('resume')
     }
     drain()
     //may have become paused again,
@@ -832,7 +944,7 @@ function through (write, end) {
 
 
 })(require("__browserify_process"))
-},{"stream":6,"__browserify_process":5}],4:[function(require,module,exports){
+},{"stream":7,"__browserify_process":6}],5:[function(require,module,exports){
 
 /**
  * Object#toString() ref for stringify().
@@ -942,6 +1054,7 @@ function parseString(str){
 
       // ?foo
       if ('' == key) key = pair, val = '';
+      if ('' == key) return ret;
 
       return merge(ret, decode(key), decode(val));
     }, { base: {} }).base;
@@ -1030,9 +1143,14 @@ function stringifyObject(obj, prefix) {
 
   for (var i = 0, len = keys.length; i < len; ++i) {
     key = keys[i];
-    ret.push(stringify(obj[key], prefix
-      ? prefix + '[' + encodeURIComponent(key) + ']'
-      : encodeURIComponent(key)));
+    if ('' == key) continue;
+    if (null == obj[key]) {
+      ret.push(encodeURIComponent(key) + '=');
+    } else {
+      ret.push(stringify(obj[key], prefix
+        ? prefix + '[' + encodeURIComponent(key) + ']'
+        : encodeURIComponent(key)));
+    }
   }
 
   return ret.join('&');
@@ -1096,7 +1214,7 @@ function decode(str) {
   }
 }
 
-},{}],6:[function(require,module,exports){
+},{}],7:[function(require,module,exports){
 var events = require('events');
 var util = require('util');
 
@@ -1217,7 +1335,7 @@ Stream.prototype.pipe = function(dest, options) {
   return dest;
 };
 
-},{"events":7,"util":8}],7:[function(require,module,exports){
+},{"events":8,"util":9}],8:[function(require,module,exports){
 (function(process){if (!process.EventEmitter) process.EventEmitter = function () {};
 
 var EventEmitter = exports.EventEmitter = process.EventEmitter;
@@ -1403,7 +1521,7 @@ EventEmitter.prototype.listeners = function(type) {
 };
 
 })(require("__browserify_process"))
-},{"__browserify_process":5}],8:[function(require,module,exports){
+},{"__browserify_process":6}],9:[function(require,module,exports){
 var events = require('events');
 
 exports.isArray = isArray;
@@ -1756,6 +1874,5 @@ exports.format = function(f) {
   return str;
 };
 
-},{"events":7}]},{},[1])(1)
-});
+},{"events":8}]},{},[1])
 ;

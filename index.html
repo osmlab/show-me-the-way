@@ -2,36 +2,30 @@
 <html>
 <head>
     <title>Show Me The Way</title>
-    <meta charset="utf-8" />
-    <link rel="stylesheet" href="http://cdn.leafletjs.com/leaflet-0.5/leaflet.css" />
-    <link rel="stylesheet" href="css/style.css" />
-    <link rel="stylesheet" href="css/site.css" />
-    <!--[if lte IE 8]><link rel="stylesheet" href="http://cdn.leafletjs.com/leaflet-0.5/leaflet.ie.css" /><![endif]-->
+    <meta charset='utf-8' />
+    <link rel='stylesheet' href='http://cdn.leafletjs.com/leaflet-0.5/leaflet.css' />
+    <link rel='stylesheet' href='css/style.css' />
+    <link rel='stylesheet' href='css/site.css' />
+    <!--[if lte IE 8]><link rel='stylesheet' href='http://cdn.leafletjs.com/leaflet-0.5/leaflet.ie.css' /><![endif]-->
 </head>
 <body>
-    <div id="context_panel">
-        <h1>See <a href='http://www.openstreetmap.org/'>OpenStreetMap</a>
-            improving in real time</h1>
-        <div id="overview_map"></div>
-        <div class='pad1'>
-            <div id="changeset_info"></div>
-            <div id="pause_area">
-                <button id="pause_button" onClick="togglePause();return false;">Pause</button>
-            </div>
-        </div>
+<div class='container'>
+    <div class='col3 full-height dark border-right'>
+        <div id='overview_map'></div>
+        <div class='col3 big-type' id='changeset_info'></div>
     </div>
-    <div id="map"></div>
+    <div id='map' class='col9 full-height'></div>
+</div>
     <script id='changeset-template' type='template'>
-<p><a class="icon-user" href="//osm.org/user/<%= change.neu.user %>"><%= change.neu.user %></a>
-     added <a href="//osm.org/browse/<%= change.neu.type %>/<%= change.neu.id %>">#<%= change.neu.id %></a>
-    in changeset <a href="http://osm.org/browse/changeset/<%= change.neu.changeset %>">
+<p><a href='//osm.org/user/<%= change.neu.user %>'><%= change.neu.user %></a>
+     added <a href='//osm.org/browse/<%= change.neu.type %>/<%= change.neu.id %>'>#<%= change.neu.id %></a>
+    in changeset <a href='http://osm.org/browse/changeset/<%= change.neu.changeset %>'>
         <%= change.neu.changeset %>
-    </a>.</p>
+    </a></p>
     </script>
-    <script src="http://cdn.leafletjs.com/leaflet-0.5/leaflet.js"></script>
-    <script src="js/Bing.js"></script>
-    <script src="js/underscore-min.js"></script>
-    <script src="js/osmstream.js"></script>
-    <script src="js/site.js"></script>
+    <script src='http://cdn.leafletjs.com/leaflet-0.5/leaflet.js'></script>
+    <script src='js/Bing.js'></script>
+    <script src='js/underscore-min.js'></script>
+    <script src='js/bundle.js'></script>
 </body>
 </html>

@@ -1,3 +1,10 @@
+var osmStream = require('osm-stream');
+
+var bboxString;
+if (location.hash) {
+    bboxString = location.hash.replace('#', '');
+}
+
 var paused = false,
 
     map = L.map('map', {
@@ -16,17 +23,17 @@ var paused = false,
         boxZoom: false
     }).setView([51.505, -0.09], 4),
 
-    osm = new L.TileLayer('http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    osm = new L.TileLayer('http://a.tiles.mapbox.com/v3/tmcw.map-d11l16t9/{z}/{x}/{y}.jpg70', {
         minZoom: 8,
         maxZoom: 12,
-        attribution: 'Map data © OpenStreetMap contributors'
+        attribution: '<a href="http://mapbox.com/about/maps/">Terms &amp; Conditions</a>'
     }).addTo(overview_map),
 
     changesToShowEveryMinute = 20,
 
-    oldLine = L.polyline([], {
-        opacity: 0.3
-    }).addTo(map),
+    // oldLine = L.polyline([], {
+    //     opacity: 0.3
+    // }).addTo(map),
 
     newLine = L.polyline([], {
         opacity: 1,
@@ -45,7 +52,7 @@ overview_map.attributionControl.setPrefix('');
 osmStream.runFn(function(err, data) {
     // Only include way creates or modifies
     var filteredChanges = _.chain(data).filter(function(f) {
-        return f.neu && f.neu.type === 'way' && f.type !== 'delete';
+        return f.neu && f.neu.type === 'way' && f.type !== 'delete' && f.neu.linestring;
     }).sortBy(function(f) {
         // Sort by "interestingness". For now just the number of ways?
         return f.neu.linestring.length;
@@ -62,7 +69,7 @@ osmStream.runFn(function(err, data) {
                 drawLineChange(nextChange);
             }
         }, millisPerChange);
-});
+}, 60 * 1000, 1, bboxString);
 
 function drawLineChange(change) {
     // Zoom to the area in question
@@ -74,15 +81,15 @@ function drawLineChange(change) {
     overview_map.panTo(bounds.getCenter());
 
     // Remove the previous lines, if any
-    oldLine.setLatLngs([]);
+    // oldLine.setLatLngs([]);
     newLine.setLatLngs([]);
 
     changeset_info.innerHTML = changeset_tmpl({ change: change });
 
     // Draw the old way in the background
-    if ('old' in change) {
-        oldLine.setLatLngs(change.old.linestring);
-    }
+    // if ('old' in change) {
+    //     oldLine.setLatLngs(change.old.linestring);
+    // }
 
     // Draw the new way in 1.5 seconds, node by node
     var nodeAddInterval = setInterval(function() {
