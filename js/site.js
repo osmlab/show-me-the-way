@@ -1,4 +1,5 @@
-var osmStream = require('osm-stream');
+var osmStream = require('osm-stream'),
+    _ = require('underscore');
 
 var bboxString;
 if (location.hash) {
@@ -9,12 +10,13 @@ var ignore = ['bot-mode'];
 
 var paused = false,
 
+    BING_KEY = 'Arzdiw4nlOJzRwOz__qailc8NiR31Tt51dN2D7cm57NrnceZnCpgOkmJhNpGoppU',
+
     map = L.map('map', {
         zoomControl: false
     }).setView([51.505, -0.09], 13),
 
-    bing = new L.BingLayer('Arzdiw4nlOJzRwOz__qailc8NiR31Tt51dN2D7cm57NrnceZnCpgOkmJhNpGoppU', 'Aerial')
-        .addTo(map),
+    bing = new L.BingLayer(BING_KEY, 'Aerial').addTo(map),
 
     overview_map = L.map('overview_map', {
         zoomControl: false,
@@ -31,14 +33,11 @@ var paused = false,
         attribution: '<a href="http://mapbox.com/about/maps/">Terms &amp; Conditions</a>'
     }).addTo(overview_map),
 
-    changesToShowEveryMinute = 20,
-
     newLine = L.polyline([], {
         opacity: 1,
         color: '#FF0099'
     }).addTo(map),
 
-    millisPerChange = 1500,
     changeset_info = document.getElementById('changeset_info'),
     changeset_tmpl = _.template(document.getElementById('changeset-template').innerHTML);
 
@@ -48,52 +47,54 @@ overview_map.attributionControl.setPrefix('');
 
 changeset_info.innerHTML = '<div class="loading">loading...</div>';
 
+var queue = [];
+
 // The number of changes to show per minute
 osmStream.runFn(function(err, data) {
-    // Only include way creates or modifies
-    var filteredChanges = _.chain(data).filter(function(f) {
+    queue = queue.concat(_.filter(data, function(f) {
         return f.neu && f.neu.type === 'way' &&
             f.type !== 'delete' && f.neu.linestring &&
-            ignore.indexOf(f.neu.user) === -1;
-    }).sortBy(function(f) {
-        // Sort by "interestingness". For now just the number of ways?
-        return f.neu.linestring.length;
-    // Only pick the 30 most interestin changes
-    // so we can spend 2 seconds on each change
-    }).value().slice(0, changesToShowEveryMinute);
-
-    var millisPerChange = (60000 / filteredChanges.length),
-        wayAddInterval = setInterval(function() {
-            var nextChange = filteredChanges.pop();
-            if (paused) {
-            } else if (nextChange === undefined) {
-                clearInterval(wayAddInterval);
-            } else {
-                drawLineChange(nextChange);
-            }
-        }, millisPerChange);
+            ignore.indexOf(f.neu.user) === -1 &&
+            f.neu.linestring.length > 4;
+    }));
 });
 
-function drawLineChange(change) {
+function doDrawWay() {
+    if (queue.length) {
+        drawWay(queue.pop(), function() {
+            doDrawWay();
+        });
+    } else {
+        window.setTimeout(doDrawWay, 200);
+    }
+}
+
+function drawWay(change, cb) {
+    var way = change.neu;
     // Zoom to the area in question
     var bounds = new L.LatLngBounds(
-        new L.LatLng(change.neu.bounds[2], change.neu.bounds[3]),
-        new L.LatLng(change.neu.bounds[0], change.neu.bounds[1]));
+        new L.LatLng(way.bounds[2], way.bounds[3]),
+        new L.LatLng(way.bounds[0], way.bounds[1]));
 
     map.fitBounds(bounds);
     overview_map.panTo(bounds.getCenter());
-
     newLine.setLatLngs([]);
-
     changeset_info.innerHTML = changeset_tmpl({ change: change });
 
-    // Draw the new way in 1.5 seconds, node by node
-    var nodeAddInterval = setInterval(function() {
-        var nextPoint = change.neu.linestring.pop();
-        if (nextPoint === undefined) {
-            clearInterval(nodeAddInterval);
+    var perPt = 3000 / way.linestring.length;
+
+    function drawPt(pt) {
+        newLine.addLatLng(pt);
+        if (way.linestring.length) {
+            window.setTimeout(function() {
+                drawPt(way.linestring.pop());
+            }, perPt);
         } else {
-            newLine.addLatLng(nextPoint);
+            window.setTimeout(cb, perPt);
         }
-    }, (millisPerChange / change.neu.linestring.length));
+    }
+
+    drawPt(way.linestring.pop());
 }
+
+doDrawWay();
