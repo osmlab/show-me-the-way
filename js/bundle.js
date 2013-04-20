@@ -1,4 +1,4 @@
-;(function(e,t,n){function r(n,i){if(!t[n]){if(!e[n]){var s=typeof require=="function"&&require;if(!i&&s)return s(n,!0);throw new Error("Cannot find module '"+n+"'")}var o=t[n]={exports:{}};e[n][0](function(t){var i=e[n][1][t];return r(i?i:t)},o,o.exports)}return t[n].exports}for(var i=0;i<n.length;i++)r(n[i]);return r})({1:[function(require,module,exports){
+;(function(e,t,n){function i(n,s){if(!t[n]){if(!e[n]){var o=typeof require=="function"&&require;if(!s&&o)return o(n,!0);if(r)return r(n,!0);throw new Error("Cannot find module '"+n+"'")}var u=t[n]={exports:{}};e[n][0].call(u.exports,function(t){var r=e[n][1][t];return i(r?r:t)},u,u.exports)}return t[n].exports}var r=typeof require=="function"&&require;for(var s=0;s<n.length;s++)i(n[s]);return i})({1:[function(require,module,exports){
 var osmStream = require('osm-stream'),
     _ = require('underscore');
 
@@ -82,7 +82,9 @@ function drawWay(change, cb) {
     newLine.setLatLngs([]);
     changeset_info.innerHTML = changeset_tmpl({ change: change });
 
-    var perPt = 3000 / way.linestring.length;
+    // This is a bit lower than 3000 because we want the whole way
+    // to stay on the screen for a bit before moving on.
+    var perPt = 2250 / way.linestring.length;
 
     function drawPt(pt) {
         newLine.addLatLng(pt);
