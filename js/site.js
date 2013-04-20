@@ -81,7 +81,9 @@ function drawWay(change, cb) {
     newLine.setLatLngs([]);
     changeset_info.innerHTML = changeset_tmpl({ change: change });
 
-    var perPt = 3000 / way.linestring.length;
+    // This is a bit lower than 3000 because we want the whole way
+    // to stay on the screen for a bit before moving on.
+    var perPt = 2250 / way.linestring.length;
 
     function drawPt(pt) {
         newLine.addLatLng(pt);
