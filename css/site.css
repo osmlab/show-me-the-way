@@ -43,3 +43,10 @@
     background:#000 !important;
     color:#444;
 }
+
+.loading {
+    background:url(loader_bg.gif);
+    padding:10px;
+    color:#000;
+    text-align:center;
+}

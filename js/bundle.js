@@ -6,6 +6,8 @@ if (location.hash) {
     bboxString = location.hash.replace('#', '');
 }
 
+var ignore = ['bot-mode'];
+
 var paused = false,
 
     map = L.map('map', {
@@ -32,10 +34,6 @@ var paused = false,
 
     changesToShowEveryMinute = 20,
 
-    // oldLine = L.polyline([], {
-    //     opacity: 0.3
-    // }).addTo(map),
-
     newLine = L.polyline([], {
         opacity: 1,
         color: '#FF0099'
@@ -49,15 +47,20 @@ var paused = false,
 map.attributionControl.setPrefix('');
 overview_map.attributionControl.setPrefix('');
 
+changeset_info.innerHTML = '<div class="loading">loading...</div>';
+
 // The number of changes to show per minute
 osmStream.runFn(function(err, data) {
     // Only include way creates or modifies
     var filteredChanges = _.chain(data).filter(function(f) {
-        return f.neu && f.neu.type === 'way' && f.type !== 'delete' && f.neu.linestring;
+        return f.neu && f.neu.type === 'way' &&
+            f.type !== 'delete' && f.neu.linestring &&
+            ignore.indexOf(f.neu.user) === -1;
     }).sortBy(function(f) {
         // Sort by "interestingness". For now just the number of ways?
         return f.neu.linestring.length;
-    // Only pick the 30 most interestin changes so we can spend 2 seconds on each change
+    // Only pick the 30 most interestin changes
+    // so we can spend 2 seconds on each change
     }).value().slice(0, changesToShowEveryMinute);
 
     var millisPerChange = (60000 / filteredChanges.length),
@@ -70,7 +73,7 @@ osmStream.runFn(function(err, data) {
                 drawLineChange(nextChange);
             }
         }, millisPerChange);
-}, 60 * 1000, 1, bboxString);
+});
 
 function drawLineChange(change) {
     // Zoom to the area in question
@@ -81,16 +84,9 @@ function drawLineChange(change) {
     map.fitBounds(bounds);
     overview_map.panTo(bounds.getCenter());
 
-    // Remove the previous lines, if any
-    // oldLine.setLatLngs([]);
     newLine.setLatLngs([]);
 
     changeset_info.innerHTML = changeset_tmpl({ change: change });
-
-    // Draw the old way in the background
-    // if ('old' in change) {
-    //     oldLine.setLatLngs(change.old.linestring);
-    // }
 
     // Draw the new way in 1.5 seconds, node by node
     var nodeAddInterval = setInterval(function() {
@@ -101,12 +97,6 @@ function drawLineChange(change) {
             newLine.addLatLng(nextPoint);
         }
     }, (millisPerChange / change.neu.linestring.length));
-}
-
-function togglePause() {
-    paused = !paused;
-    // TODO Stop and start the osmstream?
-    document.getElementById('pause_button').innerHTML = paused ? 'Continue' : 'Pause';
 }
 
 },{"osm-stream":2}],2:[function(require,module,exports){
