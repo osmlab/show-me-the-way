@@ -17,9 +17,9 @@
     <div id='map' class='col9 full-height'></div>
 </div>
     <script id='changeset-template' type='template'>
-<p><a href='//osm.org/user/<%= change.neu.user %>'><%= change.neu.user %></a>
-     added <a href='//osm.org/browse/<%= change.neu.type %>/<%= change.neu.id %>'>#<%= change.neu.id %></a>
-    in changeset <a href='http://osm.org/browse/changeset/<%= change.neu.changeset %>'>
+<p><a target='_blank' href='//osm.org/user/<%= change.neu.user %>'><%= change.neu.user %></a>
+     added <a target='_blank' href='//osm.org/browse/<%= change.neu.type %>/<%= change.neu.id %>'>#<%= change.neu.id %></a>
+    in changeset <a target='_blank' href='http://osm.org/browse/changeset/<%= change.neu.changeset %>'>
         <%= change.neu.changeset %>
     </a></p>
     </script>
