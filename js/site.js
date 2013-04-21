@@ -103,6 +103,7 @@ function drawWay(change, cb) {
         }
     }
 
+    newLine.addLatLng(way.linestring.pop());
     drawPt(way.linestring.pop());
 }
 
