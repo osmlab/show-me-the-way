@@ -1,9 +1,9 @@
 var osmStream = require('osm-stream'),
     _ = require('underscore');
 
-var bboxString;
+var bboxString = ["-90.0", "-180.0", "90.0", "180.0"];
 if (location.hash) {
-    bboxString = location.hash.replace('#', '');
+    bboxString = location.hash.replace('#', '').split(',');
 }
 
 var ignore = ['bot-mode'];
@@ -45,6 +45,10 @@ var paused = false,
 map.attributionControl.setPrefix('');
 overview_map.attributionControl.setPrefix('');
 
+var bbox = new L.LatLngBounds(
+        new L.LatLng(+bboxString[0], +bboxString[1]),
+        new L.LatLng(+bboxString[2], +bboxString[3]));
+
 changeset_info.innerHTML = '<div class="loading">loading...</div>';
 
 var queue = [];
@@ -53,6 +57,9 @@ var queue = [];
 osmStream.runFn(function(err, data) {
     queue = queue.concat(_.filter(data, function(f) {
         return f.neu && f.neu.type === 'way' &&
+            (bbox && bbox.intersects(new L.LatLngBounds(
+                new L.LatLng(f.neu.bounds[0], f.neu.bounds[1]),
+                new L.LatLng(f.neu.bounds[2], f.neu.bounds[3])))) &&
             f.type !== 'delete' && f.neu.linestring &&
             ignore.indexOf(f.neu.user) === -1 &&
             f.neu.linestring.length > 4;
