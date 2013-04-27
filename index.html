@@ -20,8 +20,9 @@
 <p><a target='_blank' href='//osm.org/user/<%= change.neu.user %>'><%= change.neu.user %></a>
      added <a target='_blank' href='//osm.org/browse/<%= change.neu.type %>/<%= change.neu.id %>'>#<%= change.neu.id %></a>
     in changeset <a target='_blank' href='http://osm.org/browse/changeset/<%= change.neu.changeset %>'>
-        <%= change.neu.changeset %>
-    </a></p>
+        <%= change.neu.changeset %></a>
+    <span id='reverse-location'></span>
+    </p>
     </script>
     <script src='http://cdn.leafletjs.com/leaflet-0.5/leaflet.js'></script>
     <script src='js/Bing.js'></script>

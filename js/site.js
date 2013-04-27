@@ -1,10 +1,14 @@
 var osmStream = require('osm-stream'),
+    reqwest = require('reqwest'),
     _ = require('underscore');
 
 var bboxString = ["-90.0", "-180.0", "90.0", "180.0"];
 if (location.hash) {
     bboxString = location.hash.replace('#', '').split(',');
 }
+
+var nominatim_tmpl = 'http://nominatim.openstreetmap.org/reverse?format=json' +
+    '&lat={lat}&lon={lon}&zoom=5';
 
 var ignore = ['bot-mode'];
 
@@ -13,7 +17,11 @@ var paused = false,
     BING_KEY = 'Arzdiw4nlOJzRwOz__qailc8NiR31Tt51dN2D7cm57NrnceZnCpgOkmJhNpGoppU',
 
     map = L.map('map', {
-        zoomControl: false
+        zoomControl: false,
+        dragging: false,
+        scrollWheelZoom: false,
+        doubleClickZoom: false,
+        boxZoom: false
     }).setView([51.505, -0.09], 13),
 
     bing = new L.BingLayer(BING_KEY, 'Aerial').addTo(map),
@@ -53,6 +61,18 @@ changeset_info.innerHTML = '<div class="loading">loading...</div>';
 
 var queue = [];
 
+function showLocation(ll) {
+    reqwest({
+        url: nominatim_tmpl
+            .replace('{lat}', ll.lat)
+            .replace('{lon}', ll.lng),
+        type: 'json'
+    }, function(resp) {
+        document.getElementById('reverse-location').innerHTML =
+            ' in ' + resp.display_name;
+    });
+}
+
 // The number of changes to show per minute
 osmStream.runFn(function(err, data) {
     queue = queue.concat(_.filter(data, function(f) {
@@ -83,6 +103,8 @@ function drawWay(change, cb) {
         new L.LatLng(way.bounds[2], way.bounds[3]),
         new L.LatLng(way.bounds[0], way.bounds[1]));
 
+    showLocation(bounds.getCenter());
+
     map.fitBounds(bounds);
     overview_map.panTo(bounds.getCenter());
     newLine.setLatLngs([]);
@@ -99,7 +121,7 @@ function drawWay(change, cb) {
                 drawPt(way.linestring.pop());
             }, perPt);
         } else {
-            window.setTimeout(cb, perPt);
+            window.setTimeout(cb, perPt * 2);
         }
     }
 
