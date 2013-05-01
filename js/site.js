@@ -33,7 +33,7 @@ var paused = false,
         scrollWheelZoom: false,
         doubleClickZoom: false,
         boxZoom: false
-    }).setView([51.505, -0.09], 4),
+    }).setView([51.505, -0.09], 1),
 
     osm = new L.TileLayer('http://a.tiles.mapbox.com/v3/tmcw.map-d11l16t9/{z}/{x}/{y}.jpg70', {
         minZoom: 8,
@@ -69,7 +69,7 @@ function showLocation(ll) {
         type: 'json'
     }, function(resp) {
         document.getElementById('reverse-location').innerHTML =
-            ' in ' + resp.display_name;
+            '<p> ' + resp.display_name + ' </p>';
     });
 }
 
