@@ -17,8 +17,8 @@
 .overlay {
     z-index: 2;
     position: absolute;
-    background:white;
-    color:#444;
+    background:rgba(0, 0, 0, 0.8);
+    color:white;
     margin-top: 40px;
     margin-left: 40px;
     line-height: 1.3333;
@@ -74,7 +74,7 @@
     .overlay {
         margin: 0px;
     }
-    p { margin-bottom: 0;}
+    p { margin-bottom: 10px;}
     #overview_map {
         display: none;
     }
