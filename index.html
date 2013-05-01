@@ -10,18 +10,21 @@
 </head>
 <body>
 <div class='container'>
-    <div class='col3 full-height dark border-right'>
+    <div class='col3 overlay'>
+        <div class='pad2'>
+            <h1>Latest Edit</h1>
+        </div>
         <div id='overview_map'></div>
-        <div class='col3 big-type' id='changeset_info'></div>
+        <div class='pad2' id='changeset_info'></div>
     </div>
-    <div id='map' class='col9 full-height'></div>
+    <div id='map' class='col12 full-height'></div>
 </div>
     <script id='changeset-template' type='template'>
 <p><a target='_blank' href='//osm.org/user/<%= change.neu.user %>'><%= change.neu.user %></a>
      added <a target='_blank' href='//osm.org/browse/<%= change.neu.type %>/<%= change.neu.id %>'>#<%= change.neu.id %></a>
     in changeset <a target='_blank' href='http://osm.org/browse/changeset/<%= change.neu.changeset %>'>
         <%= change.neu.changeset %></a>
-    <span id='reverse-location'></span>
+    <div id='reverse-location'></div>
     </p>
     </script>
     <script src='http://cdn.leafletjs.com/leaflet-0.5/leaflet.js'></script>

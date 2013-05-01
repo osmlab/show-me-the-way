@@ -64,9 +64,10 @@ h6 {
   }
 
 h1 {
-  font-size:32px;
-  margin-bottom:20px;
+  font-size: 75%;
+  margin-bottom:0px;
   line-height:1em;
+  text-transform: uppercase;
   }
 
 h2 {
@@ -94,18 +95,23 @@ p {
 
 /* Links */
 a {
-  color:#77c453;
+  font-weight: bold;
+  color:#444;
   text-decoration:none;
   }
   a:visited {
-    color:#9ed485;
+    color:#444;
     }
   a:hover {
-    color:#54af29;
+    color:#ff0099;
     }
   a:active {
-    color:#9ed485;
+    color:#ff0099;
     }
+
+a:first-of-type {
+  color:#ff0099;
+}
 
 abbr {
   border-bottom:1px dotted #000;
