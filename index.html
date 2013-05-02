@@ -10,21 +10,19 @@
 </head>
 <body>
 <div class='container'>
-    <div class='col3 overlay'>
-        <div class='pad2'>
-            <h1>Latest Edit</h1>
-        </div>
+    <div class='sq overlay round'>
         <div id='overview_map'></div>
+        <p class='pad2' id='reverse-location'></p>
+    </div>
+    <div class='overlay align-bottom'>
         <div class='pad2' id='changeset_info'></div>
     </div>
     <div id='map' class='col12 full-height'></div>
+    <a href='http://openstreetmap.org/' class='byosm'></a>
 </div>
     <script id='changeset-template' type='template'>
-<p><a target='_blank' href='//osm.org/user/<%= change.neu.user %>'><%= change.neu.user %></a>
-     added <a target='_blank' href='//osm.org/browse/<%= change.neu.type %>/<%= change.neu.id %>'>#<%= change.neu.id %></a>
-    in changeset <a target='_blank' href='http://osm.org/browse/changeset/<%= change.neu.changeset %>'>
-        <%= change.neu.changeset %></a>
-    <div id='reverse-location'></div>
+<p><%=change.timetext%> <a target='_blank' href='//osm.org/user/<%= change.neu.user %>'><%= change.neu.user %></a>
+     added <a target='_blank' href='//osm.org/browse/<%= change.neu.type %>/<%= change.neu.id %>'><%= change.tagtext %></a>
     </p>
     </script>
     <script src='http://cdn.leafletjs.com/leaflet-0.5/leaflet.js'></script>

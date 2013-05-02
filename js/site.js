@@ -1,5 +1,6 @@
 var osmStream = require('osm-stream'),
     reqwest = require('reqwest'),
+    moment = require('moment'),
     _ = require('underscore');
 
 var bboxString = ["-90.0", "-180.0", "90.0", "180.0"];
@@ -41,11 +42,7 @@ var paused = false,
         attribution: '<a href="http://mapbox.com/about/maps/">Terms &amp; Conditions</a>'
     }).addTo(overview_map),
 
-    newLine = L.polyline([], {
-        opacity: 1,
-        color: '#FF0099'
-    }).addTo(map),
-
+    lineGroup = L.featureGroup().addTo(map),
     changeset_info = document.getElementById('changeset_info'),
     changeset_tmpl = _.template(document.getElementById('changeset-template').innerHTML);
 
@@ -69,7 +66,7 @@ function showLocation(ll) {
         type: 'json'
     }, function(resp) {
         document.getElementById('reverse-location').innerHTML =
-            '<p> ' + resp.display_name + ' </p>';
+            '' + resp.display_name + '';
     });
 }
 
@@ -96,8 +93,37 @@ function doDrawWay() {
     }
 }
 
+function pruneLines() {
+    var mb = map.getBounds();
+    lineGroup.eachLayer(function(l) {
+        if (!mb.intersects(l.getBounds())) {
+            lineGroup.removeLayer(l);
+        } else {
+            l.setStyle({
+                opacity: 0.5
+            });
+        }
+    });
+}
+
+var showTags = ['building', 'natural', 'leisure', 'barrier', 'landuse', 'highway'];
+
+function setTagText(change) {
+    for (var i = 0; i < showTags.length; i++) {
+        if (change.neu.tags[showTags[i]]) {
+            change.tagtext = showTags[i] + '=' + change.neu.tags[showTags[i]];
+            return change;
+        }
+    }
+    change.tagtext = 'a way';
+    return change;
+}
+
 function drawWay(change, cb) {
+    pruneLines();
+
     var way = change.neu;
+
     // Zoom to the area in question
     var bounds = new L.LatLngBounds(
         new L.LatLng(way.bounds[2], way.bounds[3]),
@@ -105,11 +131,25 @@ function drawWay(change, cb) {
 
     showLocation(bounds.getCenter());
 
+    var timedate = moment(change.neu.timestamp);
+    change.timetext = timedate.fromNow();
+
     map.fitBounds(bounds);
     overview_map.panTo(bounds.getCenter());
-    newLine.setLatLngs([]);
-    changeset_info.innerHTML = changeset_tmpl({ change: change });
+    changeset_info.innerHTML = changeset_tmpl({ change: setTagText(change) });
 
+    if (change.neu.tags.building || change.neu.tags.area) {
+        newLine = L.polygon([], {
+            opacity: 1,
+            color: '#FF0099',
+            fill: '#FF0099'
+        }).addTo(lineGroup);
+    } else {
+        newLine = L.polyline([], {
+            opacity: 1,
+            color: '#FF0099'
+        }).addTo(lineGroup);
+    }
     // This is a bit lower than 3000 because we want the whole way
     // to stay on the screen for a bit before moving on.
     var perPt = 2250 / way.linestring.length;

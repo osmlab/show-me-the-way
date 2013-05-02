@@ -18,17 +18,37 @@
     z-index: 2;
     position: absolute;
     background:rgba(0, 0, 0, 0.8);
-    color:white;
+    color:#ccc;
     margin-top: 40px;
     margin-left: 40px;
     line-height: 1.3333;
-    min-width: 300px;
+}
+
+.byosm {
+    width:50px;
+    height:50px;
+    position:absolute;
+    top:10px;
+    right:10px;
+    background:url(byosm.png);
+}
+
+#reverse-location {
+    font-size:20px;
+}
+
+.overlay a {
+    color:#fff;
 }
 
 #overview_map {
-    height: 200px;
+    height: 300px;
     background:#111;
     position: relative;
+}
+
+.sq {
+    width:300px;
 }
 
 #overview_map::after {
@@ -44,13 +64,8 @@
 
 .leaflet-control-attribution {
     box-shadow:none !important;
-    background:rgba(0, 0, 0, 0.8) !important;
+    background:rgba(0, 0, 0, 0.2) !important;
     color:#444;
-}
-
-#reverse-location {
-    font-size: 75%;
-    position: relative;
 }
 
 .loading {
@@ -58,6 +73,10 @@
     padding:10px;
     color:#000;
     text-align:center;
+}
+
+.align-bottom {
+    bottom:20px;
 }
 
 @media only screen and (max-width: 900px) {
