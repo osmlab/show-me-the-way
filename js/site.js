@@ -36,13 +36,14 @@ var paused = false,
         boxZoom: false
     }).setView([51.505, -0.09], 1),
 
-    osm = new L.TileLayer('http://a.tiles.mapbox.com/v3/tmcw.map-d11l16t9/{z}/{x}/{y}.jpg70', {
-        minZoom: 8,
-        maxZoom: 12,
+    osm = new L.TileLayer('http://a.tiles.mapbox.com/v3/saman.map-f8nluy8d/{z}/{x}/{y}.jpg70', {
+        minZoom: 4,
+        maxZoom: 8,
         attribution: '<a href="http://mapbox.com/about/maps/">Terms &amp; Conditions</a>'
     }).addTo(overview_map),
 
     lineGroup = L.featureGroup().addTo(map),
+
     changeset_info = document.getElementById('changeset_info'),
     changeset_tmpl = _.template(document.getElementById('changeset-template').innerHTML);
 
@@ -141,13 +142,13 @@ function drawWay(change, cb) {
     if (change.neu.tags.building || change.neu.tags.area) {
         newLine = L.polygon([], {
             opacity: 1,
-            color: '#FF0099',
-            fill: '#FF0099'
+            color: '#3887be',
+            fill: '#3887be'
         }).addTo(lineGroup);
     } else {
         newLine = L.polyline([], {
             opacity: 1,
-            color: '#FF0099'
+            color: '#3887be'
         }).addTo(lineGroup);
     }
     // This is a bit lower than 3000 because we want the whole way
