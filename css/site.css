@@ -17,8 +17,7 @@
 .overlay {
     z-index: 2;
     position: absolute;
-    background:#28353d;
-    background: rgba(40, 53, 61, .9);
+    background: #000;
     color:#ccc;
     margin-top: 40px;
     margin-left: 8.33333%;
