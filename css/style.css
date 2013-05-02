@@ -44,7 +44,7 @@ body,
 input,
 textarea {
   color:#333;
-  font:15px/1.67 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  font:15px/1.67 'Open Sans', Helvetica, Arial, sans-serif;
   -webkit-font-smoothing:antialiased;
   }
 *, *:after, *:before {
@@ -60,11 +60,12 @@ h4,
 h5,
 h6 {
   margin:0;
-  font-weight:bold;
+  font-weight: 700;
   }
 
 h1 {
-  font-size: 75%;
+  font-family: 'Open Sans Condensed', sans-serif;
+  font-size: 15px;
   margin-bottom:0px;
   line-height:1em;
   text-transform: uppercase;
@@ -95,15 +96,14 @@ p {
 
 /* Links */
 a {
-  font-weight: bold;
-  color:white;
+  color:#3887BE;
   text-decoration:none;
   }
   a:visited {
     color:white;
     }
   a:hover {
-    color:#ff0099;
+    color:#3BB2D0;
     }
   a:active {
     color:#ff0099;
@@ -116,7 +116,7 @@ abbr {
 
 address { font-style:italic;}
 small   { font-size:11px;}
-strong  { font-weight:bold;}
+strong  { font-weight:700;}
 em      { font-style:italic;}
 
 hr {

@@ -36,15 +36,15 @@ var paused = false,
         boxZoom: false
     }).setView([51.505, -0.09], 1),
 
-    osm = new L.TileLayer('http://a.tiles.mapbox.com/v3/tmcw.map-d11l16t9/{z}/{x}/{y}.jpg70', {
-        minZoom: 8,
-        maxZoom: 12,
+    osm = new L.TileLayer('http://a.tiles.mapbox.com/v3/saman.map-f8nluy8d/{z}/{x}/{y}.jpg70', {
+        minZoom: 4,
+        maxZoom: 8,
         attribution: '<a href="http://mapbox.com/about/maps/">Terms &amp; Conditions</a>'
     }).addTo(overview_map),
 
     newLine = L.polyline([], {
         opacity: 1,
-        color: '#FF0099'
+        color: '#3887be'
     }).addTo(map),
 
     changeset_info = document.getElementById('changeset_info'),
