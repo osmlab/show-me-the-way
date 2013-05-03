@@ -14,17 +14,20 @@
 <div class='container'>
     <div class='sq overlay round'>
         <div id='overview_map'></div>
-        <p class='pad2' id='reverse-location'></p>
+        <p class='pad2 change-meta' id='reverse-location'></p>
     </div>
     <div class='overlay align-bottom'>
         <div class='pad2' id='changeset_info'></div>
+        <p class='pad2 change-meta' id='comment'></p>
     </div>
+    <div class='indicator' id='queuesize'></div>
     <div id='map' class='col12 full-height'></div>
     <a href='http://openstreetmap.org/' class='byosm'></a>
 </div>
     <script id='changeset-template' type='template'>
-<p><%=change.timetext%> <a target='_blank' href='//osm.org/user/<%= change.neu.user %>'><%= change.neu.user %></a>
-     added <a target='_blank' href='//osm.org/browse/<%= change.neu.type %>/<%= change.neu.id %>'><%= change.tagtext %></a>
+<% var past_tense = { modify: 'modified', create: 'created', 'delete': 'deleted' }; %>
+<p><a target='_blank' href='//osm.org/browse/changeset/<%=change.meta.changeset%>'><%=change.timetext%></a> <a target='_blank' href='//osm.org/user/<%= change.meta.user %>'><%= change.meta.user %></a>
+     <%= past_tense[change.type] %> <a target='_blank' href='//osm.org/browse/<%= change.meta.type %>/<%= change.meta.id %>'><%= change.tagtext %></a>
     </p>
     </script>
     <script src='http://cdn.leafletjs.com/leaflet-0.5/leaflet.js'></script>

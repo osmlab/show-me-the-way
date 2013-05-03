@@ -18,7 +18,7 @@
     z-index: 2;
     position: absolute;
     background: #000;
-    color:#ccc;
+    color:#aaa;
     margin-top: 40px;
     margin-left: 8.33333%;
     line-height: 1.3333;
@@ -33,10 +33,6 @@
     background:url(byosm.png);
 }
 
-#reverse-location {
-    font-size:20px;
-}
-
 .overlay a {
     color:#fff;
 }
@@ -49,6 +45,20 @@
 
 .sq {
     width:300px;
+}
+
+.indicator {
+    position:absolute;
+    top:5px;
+    left:5px;
+    color:#fff;
+    z-index:99;
+    font-size:20px;
+    text-shadow:
+        0 0 2px #000,
+        0 0 2px #000,
+        0 0 2px #000,
+        0 0 2px #000;
 }
 
 #overview_map::after {
@@ -68,8 +78,10 @@
     color:white !important;
 }
 
-#reverse-location {
-    font-size: 12px;
+.change-meta {
+    font-size:20px;
+    font-weight:bold;
+    color:#fff;
     position: relative;
 }
 
