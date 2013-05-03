@@ -99,8 +99,12 @@ osmStream.runFn(function(err, data) {
             moment(f.meta.timestamp).format("MMM Do YY") === moment().format("MMM Do YY") &&
             ignore.indexOf(f.meta.user) === -1 &&
             f.feature.linestring.length > 4;
-    }).reverse().concat(queue);
-    runSpeed = (240 * 1000) / queue.length;
+    }).sort(function(a, b) {
+        return (+new Date(a.meta.tilestamp)) -
+            (+new Date(a.meta.tilestamp));
+    });
+    // if (queue.length > 2000) queue = queue.slice(0, 2000);
+    runSpeed = 1500;
 });
 
 function doDrawWay() {
@@ -158,7 +162,7 @@ function drawWay(change, cb) {
     overview_map.panTo(bounds.getCenter());
     changeset_info.innerHTML = changeset_tmpl({ change: setTagText(change) });
 
-    var color = { 'create': '#00FFD4', 'modify': '#FF00EA', 'delete': '#FF0000' }[change.type];
+    var color = { 'create': '#B7FF00', 'modify': '#FF00EA', 'delete': '#FF0000' }[change.type];
     if (change.feature.tags.building || change.feature.tags.area) {
         newLine = L.polygon([], {
             opacity: 1,

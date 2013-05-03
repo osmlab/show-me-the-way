@@ -100,8 +100,12 @@ osmStream.runFn(function(err, data) {
             moment(f.meta.timestamp).format("MMM Do YY") === moment().format("MMM Do YY") &&
             ignore.indexOf(f.meta.user) === -1 &&
             f.feature.linestring.length > 4;
-    }).reverse().concat(queue);
-    runSpeed = (240 * 1000) / queue.length;
+    }).sort(function(a, b) {
+        return (+new Date(a.meta.tilestamp)) -
+            (+new Date(a.meta.tilestamp));
+    });
+    // if (queue.length > 2000) queue = queue.slice(0, 2000);
+    runSpeed = 1500;
 });
 
 function doDrawWay() {
@@ -159,7 +163,7 @@ function drawWay(change, cb) {
     overview_map.panTo(bounds.getCenter());
     changeset_info.innerHTML = changeset_tmpl({ change: setTagText(change) });
 
-    var color = { 'create': '#00FFD4', 'modify': '#FF00EA', 'delete': '#FF0000' }[change.type];
+    var color = { 'create': '#B7FF00', 'modify': '#FF00EA', 'delete': '#FF0000' }[change.type];
     if (change.feature.tags.building || change.feature.tags.area) {
         newLine = L.polygon([], {
             opacity: 1,
@@ -3416,8 +3420,9 @@ var osmStream = (function osmMinutely() {
     function parseNode(x) {
         if (!x) return undefined;
         var o = meta(x);
+        var bounds, tgs;
         if (o.type === 'way') {
-            var bounds = get(x, ['bounds']);
+            bounds = get(x, ['bounds']);
             o.bounds = [
                 +bounds.getAttribute('maxlat'),
                 +bounds.getAttribute('maxlon'),
@@ -3436,7 +3441,20 @@ var osmStream = (function osmMinutely() {
                 o.linestring = nodes;
             }
 
-            var tgs = x.getElementsByTagName('tag');
+            tgs = x.getElementsByTagName('tag');
+            var tags = {};
+            for (var j = 0; j < tgs.length; j++) {
+                tags[tgs[j].getAttribute("k")] = tgs[j].getAttribute("v");
+            }
+            o.tags = tags;
+        } else if (o.type === 'node') {
+            o.bounds = [
+                +x.getAttribute('lat'),
+                +x.getAttribute('lon'),
+                +x.getAttribute('lat'),
+                +x.getAttribute('lon')];
+
+            tgs = x.getElementsByTagName('tag');
             var tags = {};
             for (var j = 0; j < tgs.length; j++) {
                 tags[tgs[j].getAttribute("k")] = tgs[j].getAttribute("v");
@@ -3489,7 +3507,7 @@ var osmStream = (function osmMinutely() {
                     items.push(o);
                 }
             }
-            console.log(items);
+
             cb(null, items);
         }, bbox);
     }
@@ -4195,7 +4213,7 @@ function through (write, end, opts) {
   write = write || function (data) { this.queue(data) }
   end = end || function () { this.queue(null) }
 
-  var ended = false, destroyed = false, buffer = [], _ended = false
+  var ended = false, destroyed = false, buffer = []
   var stream = new Stream()
   stream.readable = stream.writable = true
   stream.paused = false
@@ -4219,9 +4237,6 @@ function through (write, end, opts) {
   }
 
   stream.queue = stream.push = function (data) {
-//    console.error(ended)
-    if(_ended) return stream
-    if(data == null) _ended = true
     buffer.push(data)
     drain()
     return stream
