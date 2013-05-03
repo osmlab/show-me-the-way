@@ -142,13 +142,13 @@ function drawWay(change, cb) {
     if (change.neu.tags.building || change.neu.tags.area) {
         newLine = L.polygon([], {
             opacity: 1,
-            color: '#3887be',
-            fill: '#3887be'
+            color: '#bd93e5',
+            fill: '#bd93e5'
         }).addTo(lineGroup);
     } else {
         newLine = L.polyline([], {
             opacity: 1,
-            color: '#3887be'
+            color: '#bd93e5'
         }).addTo(lineGroup);
     }
     // This is a bit lower than 3000 because we want the whole way
