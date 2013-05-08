@@ -58,6 +58,7 @@ function showLocation(ll) {
         '&lat={lat}&lon={lon}&zoom=5';
     reqwest({
         url: nominatim_tmpl.replace('{lat}', ll.lat).replace('{lon}', ll.lng),
+        crossOrigin: true,
         type: 'json'
     }, function(resp) {
         document.getElementById('reverse-location').innerHTML =
@@ -70,6 +71,7 @@ function showComment(id) {
     reqwest({
         url: changeset_url_tmpl
             .replace('{id}', id),
+        crossOrigin: true,
         type: 'xml'
     }, function(resp) {
         var tags = resp.getElementsByTagName('tag');
