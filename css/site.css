@@ -70,14 +70,7 @@
 }
 
 @media only screen and (max-width: 640px) {
-    .overlay {
-        margin: 0px;
-    }
-    p { margin-bottom: 10px;}
-    #overview_map {
-        display: none;
-    }
-    .pad2 {
-        padding: 10px;
-    }
+    .overlay {margin: 0px;}
+    #overview_map {display: none;}
+    .align-bottom { bottom: 0;}
 }
