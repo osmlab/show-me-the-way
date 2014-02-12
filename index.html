@@ -4,24 +4,25 @@
     <title>Show Me The Way</title>
     <meta charset='utf-8' />
     <link rel='stylesheet' href='http://cdn.leafletjs.com/leaflet-0.5/leaflet.css' />
-    <link rel='stylesheet' href='css/style.css' />
+    <link href='https://www.mapbox.com/base/latest/base.css' rel='stylesheet' />
     <link rel='stylesheet' href='css/site.css' />
     <!--[if lte IE 8]><link rel='stylesheet' href='http://cdn.leafletjs.com/leaflet-0.5/leaflet.ie.css' /><![endif]-->
     <link href='http://fonts.googleapis.com/css?family=Open+Sans:400,700|Open+Sans+Condensed:700' rel='stylesheet' type='text/css'>
 
 </head>
 <body>
-<div class='container'>
-    <div class='sq overlay round'>
+<div class='dark container'>
+    <div class='sq fill-darken3 overlay round'>
         <div id='overview_map'></div>
-        <p class='pad2' id='reverse-location'></p>
+        <p class='pad1' id='reverse-location'></p>
     </div>
-    <div class='overlay align-bottom'>
-        <div class='pad2' id='changeset_info'></div>
+    <div class='overlay fill-darken3 align-bottom'>
+        <h2 class='pad2' id='changeset_info'></h2>
     </div>
     <div id='map' class='col12 full-height'></div>
     <a href='http://openstreetmap.org/' class='byosm'></a>
 </div>
+
     <script id='changeset-template' type='template'>
 <p><%=change.timetext%> <a target='_blank' href='//osm.org/user/<%= change.neu.user %>'><%= change.neu.user %></a>
      added <a target='_blank' href='//osm.org/browse/<%= change.neu.type %>/<%= change.neu.id %>'><%= change.tagtext %></a>
