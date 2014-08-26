@@ -30,7 +30,7 @@ var overview_map = L.map('overview_map', {
 
 var bing = new L.BingLayer(BING_KEY, 'Aerial').addTo(map);
 
-var osm = new L.TileLayer('http://a.tiles.mapbox.com/v3/saman.map-f8nluy8d/{z}/{x}/{y}.jpg70', {
+var osm = new L.TileLayer('//a.tiles.mapbox.com/v3/saman.map-f8nluy8d/{z}/{x}/{y}.jpg70', {
     minZoom: 4,
     maxZoom: 8,
     attribution: '<a href="http://mapbox.com/about/maps/">Terms &amp; Conditions</a>'
@@ -63,7 +63,7 @@ function farFromLast(c) {
 }
 
 function showLocation(ll) {
-    var nominatim_tmpl = 'http://nominatim.openstreetmap.org/reverse?format=json' +
+    var nominatim_tmpl = '//nominatim.openstreetmap.org/reverse?format=json' +
         '&lat={lat}&lon={lon}&zoom=5';
     reqwest({
         url: nominatim_tmpl.replace('{lat}', ll.lat).replace('{lon}', ll.lng),
@@ -76,7 +76,7 @@ function showLocation(ll) {
 }
 
 function showComment(id) {
-    var changeset_url_tmpl = 'http://www.openstreetmap.org/api/0.6/changeset/{id}';
+    var changeset_url_tmpl = '//www.openstreetmap.org/api/0.6/changeset/{id}';
     reqwest({
         url: changeset_url_tmpl
             .replace('{id}', id),
