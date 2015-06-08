@@ -5,8 +5,16 @@ var osmStream = require('osm-stream'),
     _ = require('underscore');
 
 var bboxString = ["-90.0", "-180.0", "90.0", "180.0"];
+var filter_key = null;
+var key_array = ["filter", filter_key];
+
 if (location.hash) {
-    bboxString = location.hash.replace('#', '').split(',');
+    if(location.hash.search("filter") != -1){
+        key_array = location.hash.replace('#','').split(':')
+        filter_key = key_array[1];
+    } else {
+        bboxString = location.hash.replace('#', '').split(',');
+    }
 }
 
 var ignore = ['bot-mode'];
@@ -31,7 +39,7 @@ var overview_map = L.map('overview_map', {
 
 var bing = new L.BingLayer(BING_KEY, 'Aerial').addTo(map);
 
-var osm = new L.TileLayer('//a.tiles.mapbox.com/v3/saman.map-f8nluy8d/{z}/{x}/{y}.jpg70', {
+var osm = new L.TileLayer('http://a.tiles.mapbox.com/v3/saman.map-f8nluy8d/{z}/{x}/{y}.jpg70', {
     minZoom: 4,
     maxZoom: 8,
     attribution: '<a href="http://mapbox.com/about/maps/">Terms &amp; Conditions</a>'
@@ -64,7 +72,7 @@ function farFromLast(c) {
 }
 
 function showLocation(ll) {
-    var nominatim_tmpl = '//nominatim.openstreetmap.org/reverse?format=json' +
+    var nominatim_tmpl = 'http://nominatim.openstreetmap.org/reverse?format=json' +
         '&lat={lat}&lon={lon}&zoom=5';
     reqwest({
         url: nominatim_tmpl.replace('{lat}', ll.lat).replace('{lon}', ll.lng),
@@ -76,8 +84,12 @@ function showLocation(ll) {
     });
 }
 
+var matches; 
+if(filter_key == null) matches = 1;
+
 function showComment(id) {
-    var changeset_url_tmpl = '//www.openstreetmap.org/api/0.6/changeset/{id}';
+    
+    var changeset_url_tmpl = 'http://www.openstreetmap.org/api/0.6/changeset/{id}';
     reqwest({
         url: changeset_url_tmpl
             .replace('{id}', id),
@@ -95,7 +107,9 @@ function showComment(id) {
                 editor = tags[i].getAttribute('v').substring(0, 50);
             }
         }
+        
         document.getElementById('comment').innerHTML = comment + ' in ' + editor;
+
     });
 }
 
@@ -104,6 +118,7 @@ var runSpeed = 2000;
 // The number of changes to show per minute
 osmStream.runFn(function(err, data) {
     queue = _.filter(data, function(f) {
+
         return f.feature && f.feature.type === 'way' &&
             (bbox.intersects(new L.LatLngBounds(
                 new L.LatLng(f.feature.bounds[0], f.feature.bounds[1]),
@@ -122,12 +137,51 @@ osmStream.runFn(function(err, data) {
 
 function doDrawWay() {
     document.getElementById('queuesize').innerHTML = queue.length;
-    if (queue.length) {
-        drawWay(queue.pop(), function() {
-            doDrawWay();
-        });
-    } else {
+    if(queue.length && (filter_key != null)){
+
+        var last = queue[queue.length-1]
+        var element = last.feature.changeset;
+
+        if(element != undefined){
+            var changeset_url_tmpl = 'http://www.openstreetmap.org/api/0.6/changeset/{id}';
+            reqwest({
+                url: changeset_url_tmpl
+                    .replace('{id}', element),
+                crossOrigin: true,
+                type: 'xml'
+            }, function(resp) {
+                var tags = resp.getElementsByTagName('tag');
+                var comment = '';
+                for (var i = 0; i < tags.length; i++) {
+                    if (tags[i].getAttribute('k') == 'comment') {
+                        comment = tags[i].getAttribute('v').substring(0, 60);
+                    }
+                }
+
+                matches = comment.search(filter_key);
+
+                if (queue.length && (matches >= 0)) {
+                    drawWay(queue.pop(), function() {
+                        doDrawWay();
+                    });
+                } else {
+                    window.setTimeout(doDrawWay, runSpeed);
+                }
+            });
+        } 
+    } else if (queue.length <= 0 && filter_key != null){
         window.setTimeout(doDrawWay, runSpeed);
+    }
+    // if there isn't a filter run as usual
+    if(filter_key == null){
+
+        if (queue.length && (matches >= 0)) {
+            drawWay(queue.pop(), function() {
+                doDrawWay();
+            });
+        } else {
+            window.setTimeout(doDrawWay, runSpeed);
+        }
     }
 }
 
@@ -145,6 +199,7 @@ function pruneLines() {
 function setTagText(change) {
     var showTags = ['building', 'natural', 'leisure', 'waterway',
         'barrier', 'landuse', 'highway', 'power'];
+    
     for (var i = 0; i < showTags.length; i++) {
         if (change.feature.tags[showTags[i]]) {
             change.tagtext = showTags[i] + '=' + change.feature.tags[showTags[i]];
@@ -166,6 +221,7 @@ function drawWay(change, cb) {
         new L.LatLng(way.bounds[0], way.bounds[1]));
 
     if (farFromLast(bounds.getCenter())) showLocation(bounds.getCenter());
+
     showComment(way.changeset);
 
     var timedate = moment(change.meta.timestamp);
@@ -1630,7 +1686,7 @@ var osmStream = (function osmMinutely() {
 
     function changeUrl(id, bbox) {
         return baseUrl + changePath + qs.stringify({
-            id: id, info: 'no', bbox: bbox || '-180,-90,180,90'
+            id: id, info: 'no', bbox: '-180,-90,180,90'
         });
     }
 
@@ -1641,6 +1697,9 @@ var osmStream = (function osmMinutely() {
             type: 'text',
             success: function(res) {
                 cb(null, parseInt(res.response, 10));
+            },
+            error: function(err){
+                setTimeout(requestChangeset(state, cb, bbox), 1000);
             }
         });
     }
@@ -1652,6 +1711,9 @@ var osmStream = (function osmMinutely() {
             type: 'xml',
             success: function(res) {
                 cb(null, res);
+            },
+            error: function(err){
+                setTimeout(requestChangeset(state, cb, bbox), 1000);
             }
         });
     }
@@ -1710,7 +1772,9 @@ var osmStream = (function osmMinutely() {
     function run(id, cb, bbox) {
         requestChangeset(id, function(err, xml) {
             if (err) return cb('Error');
-            if (!xml.getElementsByTagName) return cb('No items');
+            if (xml == null){
+                run(id+1, cb, bbox);
+            } else {
             var actions = xml.getElementsByTagName('action'), a;
             var items = [];
             for (var i = 0; i < actions.length; i++) {
@@ -1744,7 +1808,7 @@ var osmStream = (function osmMinutely() {
             }
 
             cb(null, items);
-        }, bbox);
+        }}, bbox);
     }
 
     s.once = function(cb, bbox) {
@@ -1777,6 +1841,7 @@ var osmStream = (function osmMinutely() {
             }
             cb(null, stream);
             function iterate() {
+                
                 run(state, function(err, items) {
                     if (!err) {
                         write(items);
@@ -1791,6 +1856,7 @@ var osmStream = (function osmMinutely() {
     };
 
     s.runFn = function(cb, duration, dir, bbox) {
+
         dir = dir || 1;
         duration = duration || 60 * 1000;
         function setCancel() { cancel = true; }
@@ -5161,122 +5227,122 @@ function assert (test, message) {
 var lookup = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 
 ;(function (exports) {
-	'use strict';
+    'use strict';
 
   var Arr = (typeof Uint8Array !== 'undefined')
     ? Uint8Array
     : Array
 
-	var PLUS   = '+'.charCodeAt(0)
-	var SLASH  = '/'.charCodeAt(0)
-	var NUMBER = '0'.charCodeAt(0)
-	var LOWER  = 'a'.charCodeAt(0)
-	var UPPER  = 'A'.charCodeAt(0)
+    var PLUS   = '+'.charCodeAt(0)
+    var SLASH  = '/'.charCodeAt(0)
+    var NUMBER = '0'.charCodeAt(0)
+    var LOWER  = 'a'.charCodeAt(0)
+    var UPPER  = 'A'.charCodeAt(0)
 
-	function decode (elt) {
-		var code = elt.charCodeAt(0)
-		if (code === PLUS)
-			return 62 // '+'
-		if (code === SLASH)
-			return 63 // '/'
-		if (code < NUMBER)
-			return -1 //no match
-		if (code < NUMBER + 10)
-			return code - NUMBER + 26 + 26
-		if (code < UPPER + 26)
-			return code - UPPER
-		if (code < LOWER + 26)
-			return code - LOWER + 26
-	}
+    function decode (elt) {
+        var code = elt.charCodeAt(0)
+        if (code === PLUS)
+            return 62 // '+'
+        if (code === SLASH)
+            return 63 // '/'
+        if (code < NUMBER)
+            return -1 //no match
+        if (code < NUMBER + 10)
+            return code - NUMBER + 26 + 26
+        if (code < UPPER + 26)
+            return code - UPPER
+        if (code < LOWER + 26)
+            return code - LOWER + 26
+    }
 
-	function b64ToByteArray (b64) {
-		var i, j, l, tmp, placeHolders, arr
+    function b64ToByteArray (b64) {
+        var i, j, l, tmp, placeHolders, arr
 
-		if (b64.length % 4 > 0) {
-			throw new Error('Invalid string. Length must be a multiple of 4')
-		}
+        if (b64.length % 4 > 0) {
+            throw new Error('Invalid string. Length must be a multiple of 4')
+        }
 
-		// the number of equal signs (place holders)
-		// if there are two placeholders, than the two characters before it
-		// represent one byte
-		// if there is only one, then the three characters before it represent 2 bytes
-		// this is just a cheap hack to not do indexOf twice
-		var len = b64.length
-		placeHolders = '=' === b64.charAt(len - 2) ? 2 : '=' === b64.charAt(len - 1) ? 1 : 0
+        // the number of equal signs (place holders)
+        // if there are two placeholders, than the two characters before it
+        // represent one byte
+        // if there is only one, then the three characters before it represent 2 bytes
+        // this is just a cheap hack to not do indexOf twice
+        var len = b64.length
+        placeHolders = '=' === b64.charAt(len - 2) ? 2 : '=' === b64.charAt(len - 1) ? 1 : 0
 
-		// base64 is 4/3 + up to two characters of the original data
-		arr = new Arr(b64.length * 3 / 4 - placeHolders)
+        // base64 is 4/3 + up to two characters of the original data
+        arr = new Arr(b64.length * 3 / 4 - placeHolders)
 
-		// if there are placeholders, only get up to the last complete 4 chars
-		l = placeHolders > 0 ? b64.length - 4 : b64.length
+        // if there are placeholders, only get up to the last complete 4 chars
+        l = placeHolders > 0 ? b64.length - 4 : b64.length
 
-		var L = 0
+        var L = 0
 
-		function push (v) {
-			arr[L++] = v
-		}
+        function push (v) {
+            arr[L++] = v
+        }
 
-		for (i = 0, j = 0; i < l; i += 4, j += 3) {
-			tmp = (decode(b64.charAt(i)) << 18) | (decode(b64.charAt(i + 1)) << 12) | (decode(b64.charAt(i + 2)) << 6) | decode(b64.charAt(i + 3))
-			push((tmp & 0xFF0000) >> 16)
-			push((tmp & 0xFF00) >> 8)
-			push(tmp & 0xFF)
-		}
+        for (i = 0, j = 0; i < l; i += 4, j += 3) {
+            tmp = (decode(b64.charAt(i)) << 18) | (decode(b64.charAt(i + 1)) << 12) | (decode(b64.charAt(i + 2)) << 6) | decode(b64.charAt(i + 3))
+            push((tmp & 0xFF0000) >> 16)
+            push((tmp & 0xFF00) >> 8)
+            push(tmp & 0xFF)
+        }
 
-		if (placeHolders === 2) {
-			tmp = (decode(b64.charAt(i)) << 2) | (decode(b64.charAt(i + 1)) >> 4)
-			push(tmp & 0xFF)
-		} else if (placeHolders === 1) {
-			tmp = (decode(b64.charAt(i)) << 10) | (decode(b64.charAt(i + 1)) << 4) | (decode(b64.charAt(i + 2)) >> 2)
-			push((tmp >> 8) & 0xFF)
-			push(tmp & 0xFF)
-		}
+        if (placeHolders === 2) {
+            tmp = (decode(b64.charAt(i)) << 2) | (decode(b64.charAt(i + 1)) >> 4)
+            push(tmp & 0xFF)
+        } else if (placeHolders === 1) {
+            tmp = (decode(b64.charAt(i)) << 10) | (decode(b64.charAt(i + 1)) << 4) | (decode(b64.charAt(i + 2)) >> 2)
+            push((tmp >> 8) & 0xFF)
+            push(tmp & 0xFF)
+        }
 
-		return arr
-	}
+        return arr
+    }
 
-	function uint8ToBase64 (uint8) {
-		var i,
-			extraBytes = uint8.length % 3, // if we have 1 byte left, pad 2 bytes
-			output = "",
-			temp, length
+    function uint8ToBase64 (uint8) {
+        var i,
+            extraBytes = uint8.length % 3, // if we have 1 byte left, pad 2 bytes
+            output = "",
+            temp, length
 
-		function encode (num) {
-			return lookup.charAt(num)
-		}
+        function encode (num) {
+            return lookup.charAt(num)
+        }
 
-		function tripletToBase64 (num) {
-			return encode(num >> 18 & 0x3F) + encode(num >> 12 & 0x3F) + encode(num >> 6 & 0x3F) + encode(num & 0x3F)
-		}
+        function tripletToBase64 (num) {
+            return encode(num >> 18 & 0x3F) + encode(num >> 12 & 0x3F) + encode(num >> 6 & 0x3F) + encode(num & 0x3F)
+        }
 
-		// go through the array every three bytes, we'll deal with trailing stuff later
-		for (i = 0, length = uint8.length - extraBytes; i < length; i += 3) {
-			temp = (uint8[i] << 16) + (uint8[i + 1] << 8) + (uint8[i + 2])
-			output += tripletToBase64(temp)
-		}
+        // go through the array every three bytes, we'll deal with trailing stuff later
+        for (i = 0, length = uint8.length - extraBytes; i < length; i += 3) {
+            temp = (uint8[i] << 16) + (uint8[i + 1] << 8) + (uint8[i + 2])
+            output += tripletToBase64(temp)
+        }
 
-		// pad the end with zeros, but make sure to not forget the extra bytes
-		switch (extraBytes) {
-			case 1:
-				temp = uint8[uint8.length - 1]
-				output += encode(temp >> 2)
-				output += encode((temp << 4) & 0x3F)
-				output += '=='
-				break
-			case 2:
-				temp = (uint8[uint8.length - 2] << 8) + (uint8[uint8.length - 1])
-				output += encode(temp >> 10)
-				output += encode((temp >> 4) & 0x3F)
-				output += encode((temp << 2) & 0x3F)
-				output += '='
-				break
-		}
+        // pad the end with zeros, but make sure to not forget the extra bytes
+        switch (extraBytes) {
+            case 1:
+                temp = uint8[uint8.length - 1]
+                output += encode(temp >> 2)
+                output += encode((temp << 4) & 0x3F)
+                output += '=='
+                break
+            case 2:
+                temp = (uint8[uint8.length - 2] << 8) + (uint8[uint8.length - 1])
+                output += encode(temp >> 10)
+                output += encode((temp >> 4) & 0x3F)
+                output += encode((temp << 2) & 0x3F)
+                output += '='
+                break
+        }
 
-		return output
-	}
+        return output
+    }
 
-	exports.toByteArray = b64ToByteArray
-	exports.fromByteArray = uint8ToBase64
+    exports.toByteArray = b64ToByteArray
+    exports.fromByteArray = uint8ToBase64
 }(typeof exports === 'undefined' ? (this.base64js = {}) : exports))
 
 },{}],10:[function(require,module,exports){

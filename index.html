@@ -1,13 +1,13 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Show Me The Way</title>
-    <meta charset='utf-8' />
-    <link rel='stylesheet' href='//cdnjs.cloudflare.com/ajax/libs/leaflet/0.5/leaflet.css' />
+    <title>Show me the way</title>
+    <meta nrset='utf-8' />
+    <link rel='stylesheet' href='css/leaflet.css' />
     <link rel='stylesheet' href='css/style.css' />
     <link rel='stylesheet' href='css/site.css' />
     <!--[if lte IE 8]><link rel='stylesheet' href='http://cdn.leafletjs.com/leaflet-0.5/leaflet.ie.css' /><![endif]-->
-    <link href='//fonts.googleapis.com/css?family=Open+Sans:400,700|Open+Sans+Condensed:700' rel='stylesheet' type='text/css'>
+    <link href='css/fonts.css' rel='stylesheet' type='text/css'>
 
 </head>
 <body>
@@ -30,7 +30,7 @@
      <%= past_tense[change.type] %> <a target='_blank' href='//osm.org/browse/<%= change.meta.type %>/<%= change.meta.id %>'><%= change.tagtext %></a>
     </p>
     </script>
-    <script src='//cdnjs.cloudflare.com/ajax/libs/leaflet/0.5/leaflet.js'></script>
+    <script src='js/leaflet.js'></script>
     <script src='js/Bing.js'></script>
     <script src='js/bundle.js'></script>
     <script type="text/javascript">
@@ -41,7 +41,7 @@
 
       (function() {
         var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
-        ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+        ga.src = 'js/ga.js';
         var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
       })();
 
