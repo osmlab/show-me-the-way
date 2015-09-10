@@ -26,7 +26,7 @@
 </div>
     <script id='changeset-template' type='template'>
 <% var past_tense = { modify: 'modified', create: 'created', 'delete': 'deleted' }; %>
-<p><a target='_blank' href='//openstreetmap.org/browse/changeset/<%=change.meta.changeset%>'><%=change.timetext%></a> <a target='_blank' href='//osm.org/user/<%= change.meta.user %>'><%= change.meta.user %></a>
+<p><a target='_blank' href='//openstreetmap.org/browse/changeset/<%=change.meta.changeset%>'><%=change.timetext%></a> <a target='_blank' href='//openstreetmap.org/user/<%= change.meta.user %>'><%= change.meta.user %></a>
      <%= past_tense[change.type] %> <a target='_blank' href='//openstreetmap.org/browse/<%= change.meta.type %>/<%= change.meta.id %>'><%= change.tagtext %></a>
     </p>
     </script>
