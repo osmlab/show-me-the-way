@@ -1,11 +1,26 @@
 var osmStream = require('osm-stream'),
     reqwest = require('reqwest'),
     moment = require('moment'),
-    _ = require('underscore');
+    _ = require('underscore'),
+    LRU = require('lru-cache'),
+    query_string = require('querystring');
 
 var bboxString = ["-90.0", "-180.0", "90.0", "180.0"];
+var changeset_comment_match = null;
 if (location.hash) {
-    bboxString = location.hash.replace('#', '').split(',');
+    var parsed_hash = query_string.parse(location.hash);
+    if (parsed_hash.length == 1 && parsed_hash[Object.keys(parsed_hash)[0]] === null) {
+        // To be backwards compatible with pages that assumed the only
+        // item in the hash would be the bbox
+        bboxString = Object.keys(parsed_hash)[0].split(',');
+    } else {
+        if (parsed_hash.bounds) {
+            bboxString = parsed_hash.bounds.split(',');
+        }
+        if (parsed_hash.comment) {
+            changeset_comment_match = parsed_hash.comment;
+        }
+    }
 }
 
 var ignore = ['bot-mode'];
@@ -41,6 +56,7 @@ var lineGroup = L.featureGroup().addTo(map);
 var changeset_info = document.getElementById('changeset_info');
 var changeset_tmpl = _.template(document.getElementById('changeset-template').innerHTML);
 var queue = [];
+var changeset_cache = LRU(50);
 
 // Remove Leaflet shoutouts
 map.attributionControl.setPrefix('');
@@ -75,45 +91,66 @@ function showLocation(ll) {
     });
 }
 
+function fetchChangesetData(id, callback) {
+    cached_changeset_data = changeset_cache.get(id);
+
+    if (!cached_changeset_data) {
+        var changeset_url_tmpl = '//www.openstreetmap.org/api/0.6/changeset/{id}';
+        reqwest({
+            url: changeset_url_tmpl.replace('{id}', id),
+            crossOrigin: true,
+            type: 'xml'
+        }, function(resp) {
+            var changeset_data = {};
+            var tags = resp.getElementsByTagName('tag');
+            for (var i = 0; i < tags.length; i++) {
+                var key = tags[i].getAttribute('k');
+                var value = tags[i].getAttribute('v');
+                changeset_data[key] = value;
+            }
+            changeset_cache.set(id, changeset_data);
+            callback(null, changeset_data);
+        });
+    } else {
+        callback(null, cached_changeset_data);
+    }
+}
+
 function showComment(id) {
-    var changeset_url_tmpl = '//www.openstreetmap.org/api/0.6/changeset/{id}';
-    reqwest({
-        url: changeset_url_tmpl
-            .replace('{id}', id),
-        crossOrigin: true,
-        type: 'xml'
-    }, function(resp) {
-        var tags = resp.getElementsByTagName('tag');
-        var comment = '',
-            editor = '';
-        for (var i = 0; i < tags.length; i++) {
-            if (tags[i].getAttribute('k') == 'comment') {
-                comment = tags[i].getAttribute('v').substring(0, 60);
-            }
-            if (tags[i].getAttribute('k') == 'created_by') {
-                editor = tags[i].getAttribute('v').substring(0, 50);
-            }
-        }
-        document.getElementById('comment').innerHTML = comment + ' in ' + editor;
+    fetchChangesetData(id, function(err, changeset_data) {
+        document.getElementById('comment').innerHTML = changeset_data.comment + ' in ' + changeset_data.created_by;
     });
+}
+
+function makeBbox(bounds_array) {
+    return new L.LatLngBounds(
+        new L.LatLng(bounds_array[0], bounds_array[1]),
+        new L.LatLng(bounds_array[2], bounds_array[3])
+    );
 }
 
 var runSpeed = 2000;
 
-// The number of changes to show per minute
 osmStream.runFn(function(err, data) {
     queue = _.filter(data, function(f) {
-        return f.feature && f.feature.type === 'way' &&
-            (bbox.intersects(new L.LatLngBounds(
-                new L.LatLng(f.feature.bounds[0], f.feature.bounds[1]),
-                new L.LatLng(f.feature.bounds[2], f.feature.bounds[3])))) &&
-            f.feature.linestring &&
-            moment(f.meta.timestamp).format("MMM Do YY") === moment().format("MMM Do YY") &&
-            ignore.indexOf(f.meta.user) === -1 &&
-            f.feature.linestring.length > 4;
+        var is_a_way = (f.old && f.old.type === 'way') || (f.neu && f.neu.type === 'way');
+        if (is_a_way) {
+            var bbox_intersects_old = (f.old && f.old.bounds && bbox.intersects(makeBbox(f.old.bounds)));
+            var bbox_intersects_new = (f.neu && f.neu.bounds && bbox.intersects(makeBbox(f.neu.bounds)));
+            var happened_today = moment((f.neu && f.neu.timestamp) || (f.neu && f.neu.timestamp)).format("MMM Do YY") === moment().format("MMM Do YY");
+            var user_not_ignored = (f.old && ignore.indexOf(f.old.user) === -1) || (f.neu && ignore.indexOf(f.neu.user) === -1);
+            var way_long_enough = (f.old && f.old.linestring && f.old.linestring.length > 4) || (f.neu && f.neu.linestring && f.neu.linestring.length > 4);
+            return is_a_way &&
+                (bbox_intersects_old || bbox_intersects_new) &&
+                happened_today &&
+                user_not_ignored &&
+                way_long_enough;
+        } else {
+            return false;
+        }
     }).sort(function(a, b) {
-        return (+new Date(a.meta.tilestamp)) -
-            (+new Date(b.meta.tilestamp));
+        return (+new Date((a.neu && a.neu.timestamp) || (a.neu && a.neu.timestamp))) -
+            (+new Date((b.neu && b.neu.timestamp) || (b.neu && b.neu.timestamp)));
     });
     // if (queue.length > 2000) queue = queue.slice(0, 2000);
     runSpeed = 1500;
@@ -122,9 +159,33 @@ osmStream.runFn(function(err, data) {
 function doDrawWay() {
     document.getElementById('queuesize').innerHTML = queue.length;
     if (queue.length) {
-        drawWay(queue.pop(), function() {
-            doDrawWay();
-        });
+        var change = queue.pop();
+        var way = change.neu || change.old;
+
+        // Skip ways that are part of a changeset we don't care about
+        if (changeset_comment_match && way.changeset) {
+            fetchChangesetData(way.changeset, function(err, changeset_data) {
+                if (err) {
+                    console.log("Error filtering changeset: " + err);
+                    doDrawWay();
+                    return;
+                }
+
+                if (changeset_data.comment && changeset_data.comment.indexOf(changeset_comment_match) > -1) {
+                    console.log("Drawing way " + way.id);
+                    drawWay(change, function() {
+                        doDrawWay();
+                    });
+                } else {
+                    console.log("Skipping way " + way.id + " because changeset " + way.changeset + " didn't match " + changeset_comment_match);
+                    doDrawWay();
+                }
+            });
+        } else {
+            drawWay(change, function() {
+                doDrawWay();
+            });
+        }
     } else {
         window.setTimeout(doDrawWay, runSpeed);
     }
@@ -145,8 +206,8 @@ function setTagText(change) {
     var showTags = ['building', 'natural', 'leisure', 'waterway',
         'barrier', 'landuse', 'highway', 'power'];
     for (var i = 0; i < showTags.length; i++) {
-        if (change.feature.tags[showTags[i]]) {
-            change.tagtext = showTags[i] + '=' + change.feature.tags[showTags[i]];
+        if (change.neu && change.neu.tags[showTags[i]]) {
+            change.tagtext = showTags[i] + '=' + change.neu.tags[showTags[i]];
             return change;
         }
     }
@@ -157,25 +218,30 @@ function setTagText(change) {
 function drawWay(change, cb) {
     pruneLines();
 
-    var way = change.feature;
+    var way = change.neu || change.old;
+    change.meta = {
+        id: way.id,
+        type: way.type,
+        user: way.user,
+        changeset: way.changeset
+    };
 
     // Zoom to the area in question
-    var bounds = new L.LatLngBounds(
-        new L.LatLng(way.bounds[2], way.bounds[3]),
-        new L.LatLng(way.bounds[0], way.bounds[1]));
+    var bounds = makeBbox(way.bounds);
 
     if (farFromLast(bounds.getCenter())) showLocation(bounds.getCenter());
     showComment(way.changeset);
 
-    var timedate = moment(change.meta.timestamp);
+    var timedate = moment(way.timestamp);
     change.timetext = timedate.fromNow();
 
     map.fitBounds(bounds);
     overview_map.panTo(bounds.getCenter());
-    changeset_info.innerHTML = changeset_tmpl({ change: setTagText(change) });
+    setTagText(change);
+    changeset_info.innerHTML = changeset_tmpl({ change: change });
 
     var color = { 'create': '#B7FF00', 'modify': '#FF00EA', 'delete': '#FF0000' }[change.type];
-    if (change.feature.tags.building || change.feature.tags.area) {
+    if (way.tags.building || way.tags.area) {
         newLine = L.polygon([], {
             opacity: 1,
             color: color,
