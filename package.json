@@ -15,7 +15,6 @@
     "underscore": "~1.4.4",
     "reqwest": "~0.7.2",
     "moment": "~2.0.0",
-    "lru-cache": "~4.0.0",
-    "query-string": "~3.0.0"
+    "lru-cache": "~4.0.0"
   }
 }

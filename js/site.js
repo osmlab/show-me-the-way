@@ -3,7 +3,7 @@ var osmStream = require('osm-stream'),
     moment = require('moment'),
     _ = require('underscore'),
     LRU = require('lru-cache'),
-    query_string = require('query-string');
+    query_string = require('querystring');
 
 var bboxString = ["-90.0", "-180.0", "90.0", "180.0"];
 var changeset_comment_match = null;
