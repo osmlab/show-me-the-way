@@ -8,7 +8,7 @@ var osmStream = require('osm-stream'),
 var bboxString = ["-90.0", "-180.0", "90.0", "180.0"];
 var changeset_comment_match = null;
 if (location.hash) {
-    var parsed_hash = query_string.parse(location.hash);
+    var parsed_hash = query_string.parse(location.hash.replace('#', ''));
     if (parsed_hash.length == 1 && parsed_hash[Object.keys(parsed_hash)[0]] === null) {
         // To be backwards compatible with pages that assumed the only
         // item in the hash would be the bbox
