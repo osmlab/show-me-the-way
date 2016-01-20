@@ -218,21 +218,22 @@ function setTagText(change) {
 function drawWay(change, cb) {
     pruneLines();
 
-    var way = change.neu || change.old;
+    var way = change.type === 'delete' ? change.old : change.neu;
     change.meta = {
         id: way.id,
         type: way.type,
-        user: way.user,
-        changeset: way.changeset
+        // Always pull in the new side user, timestamp, and changeset info
+        user: change.neu.user,
+        changeset: change.neu.changeset
     };
 
     // Zoom to the area in question
     var bounds = makeBbox(way.bounds);
 
     if (farFromLast(bounds.getCenter())) showLocation(bounds.getCenter());
-    showComment(way.changeset);
+    showComment(change.neu.changeset);
 
-    var timedate = moment(way.timestamp);
+    var timedate = moment(change.neu.timestamp);
     change.timetext = timedate.fromNow();
 
     map.fitBounds(bounds);
