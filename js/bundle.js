@@ -207,8 +207,9 @@ function setTagText(change) {
     var showTags = ['building', 'natural', 'leisure', 'waterway',
         'barrier', 'landuse', 'highway', 'power'];
     for (var i = 0; i < showTags.length; i++) {
-        if (change.neu && change.neu.tags[showTags[i]]) {
-            change.tagtext = showTags[i] + '=' + change.neu.tags[showTags[i]];
+        var tags = change.type === 'delete' ? change.old.tags : change.neu.tags;
+        if (tags[showTags[i]]) {
+            change.tagtext = showTags[i] + '=' + tags[showTags[i]];
             return change;
         }
     }
@@ -2683,18 +2684,27 @@ var osmStream = (function osmMinutely() {
         });
     }
 
-    function parseNode(x) {
+    function parseNodeBase(x) {
         if (!x) return undefined;
-        var o = {
+        return {
             type: x.tagName,
-            lat: +x.getAttribute('lat'),
-            lon: +x.getAttribute('lon'),
-            user: x.getAttribute('user'),
+            id: +x.getAttribute('id'),
+            version: +x.getAttribute('version'),
             timestamp: x.getAttribute('timestamp'),
             changeset: +x.getAttribute('changeset'),
-            id: +x.getAttribute('id')
+            uid: +x.getAttribute('uid'),
+            user: x.getAttribute('user'),
+            visible: x.getAttribute('visible') !== 'false'
         };
-        if (o.type === 'way') {
+    }
+
+    function parseNode(x) {
+        if (!x) return undefined;
+        var o = parseNodeBase(x);
+        if (o.type === 'node') {
+            o.lat = +x.getAttribute('lat');
+            o.lon = +x.getAttribute('lon');
+        } else if (o.type === 'way') {
             var bounds = get(x, ['bounds']);
             o.bounds = [
                 +bounds.getAttribute('maxlat'),
@@ -2742,13 +2752,14 @@ var osmStream = (function osmMinutely() {
                 var o = {};
                 a = actions[i];
                 o.type = a.getAttribute('type');
-                if (o.type == 'modify') {
+                if (o.type == 'create') {
+                    o.neu = parseNode(get(a, ['node', 'way']));
+                } else if (o.type == 'modify') {
                     o.old = parseNode(get(get(a, ['old']), ['node', 'way']));
                     o.neu = parseNode(get(get(a, ['new']), ['node', 'way']));
                 } else if (o.type == 'delete') {
                     o.old = parseNode(get(get(a, ['old']), ['node', 'way']));
-                } else {
-                    o.neu = parseNode(get(a, ['node', 'way']));
+                    o.neu = parseNodeBase(get(get(a, ['new']), ['node', 'way']));
                 }
                 if (o.old || o.neu) {
                     items.push(o);

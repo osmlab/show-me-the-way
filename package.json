@@ -10,7 +10,7 @@
   "author": "",
   "license": "BSD",
   "dependencies": {
-    "osm-stream": "~0.0.12",
+    "osm-stream": "osmlab/osm-stream#correct_neu_old",
     "ration": "0.0.0",
     "underscore": "~1.4.4",
     "reqwest": "~0.7.2",

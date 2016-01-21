@@ -206,8 +206,9 @@ function setTagText(change) {
     var showTags = ['building', 'natural', 'leisure', 'waterway',
         'barrier', 'landuse', 'highway', 'power'];
     for (var i = 0; i < showTags.length; i++) {
-        if (change.neu && change.neu.tags[showTags[i]]) {
-            change.tagtext = showTags[i] + '=' + change.neu.tags[showTags[i]];
+        var tags = change.type === 'delete' ? change.old.tags : change.neu.tags;
+        if (tags[showTags[i]]) {
+            change.tagtext = showTags[i] + '=' + tags[showTags[i]];
             return change;
         }
     }
