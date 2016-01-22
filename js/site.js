@@ -216,6 +216,16 @@ function setTagText(change) {
     return change;
 }
 
+function shallowObjectDiff(a, b) {
+    return _.omit(a, function(v, k) {
+        return b[k] === v;
+    });
+}
+
+function shallowArrayDiff(a, b) {
+
+}
+
 function drawWay(change, cb) {
     pruneLines();
 
@@ -227,6 +237,11 @@ function drawWay(change, cb) {
         user: change.neu.user,
         changeset: change.neu.changeset
     };
+
+    if (change.type === 'modify') {
+        var tagsAdded = shallowObjectDiff(change.neu.tags, change.old.tags);
+        var tagsRemoved = shallowObjectDiff(change.old.tags, change.neu.tags);
+    }
 
     // Zoom to the area in question
     var bounds = makeBbox(way.bounds);
