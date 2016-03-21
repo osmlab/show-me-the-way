@@ -60,6 +60,7 @@ L.BingLayer = L.TileLayer.extend({
 
   initMetadata: function() {
     var r = this.meta.resourceSets[0].resources[0];
+    r.imageUrl = r.imageUrl.replace(/^http:/, 'https:');
     this.options.subdomains = r.imageUrlSubdomains;
     this._url = r.imageUrl;
     this._providers = [];

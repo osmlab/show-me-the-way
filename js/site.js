@@ -48,7 +48,7 @@ var bing = new L.BingLayer(BING_KEY, 'Aerial').addTo(map);
 var osm = new L.TileLayer('//a.tiles.mapbox.com/v3/saman.map-f8nluy8d/{z}/{x}/{y}.jpg70', {
     minZoom: 4,
     maxZoom: 8,
-    attribution: '<a href="http://mapbox.com/about/maps/">Terms &amp; Conditions</a>'
+    attribution: '<a href="https://mapbox.com/about/maps/">Terms &amp; Conditions</a>'
 }).addTo(overview_map);
 
 var lineGroup = L.featureGroup().addTo(map);
