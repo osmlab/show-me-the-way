@@ -48,7 +48,7 @@
         // Do something when the bounds change.
         // Bounds are available in `e.bounds`.
         var loc = location.href.replace('bbox.html', '') + '#bounds=' + bs;
-        document.getElementById('bbox').innerHTML = loc;
+        document.getElementById('bbox').textContent = loc;
         document.getElementById('bbox').setAttribute('href', loc);
     });
     //]]>
