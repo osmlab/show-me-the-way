@@ -5,19 +5,19 @@ var osmStream = require('osm-stream'),
     LRU = require('lru-cache'),
     query_string = require('querystring');
 
-var bboxString = ["-90.0", "-180.0", "90.0", "180.0"];
+var bboxArray = ["-90.0", "-180.0", "90.0", "180.0"];
 var mapCenter = [51.505, -0.09];
 var filteredBbox = false;
 var changeset_comment_match = null;
 if (location.hash) {
     var parsed_hash = query_string.parse(location.hash.replace('#', ''));
-    if (parsed_hash.length == 1 && parsed_hash[Object.keys(parsed_hash)[0]] === null) {
+    if (parsed_hash.length === 1 && parsed_hash[Object.keys(parsed_hash)[0]] === null) {
         // To be backwards compatible with pages that assumed the only
         // item in the hash would be the bbox
-        bboxString = Object.keys(parsed_hash)[0].split(',');
+        bboxArray = Object.keys(parsed_hash)[0].split(',');
     } else {
         if (parsed_hash.bounds) {
-            bboxString = parsed_hash.bounds.split(',');
+            bboxArray = parsed_hash.bounds.split(',');
             filteredBbox = true;
         }
         if (parsed_hash.comment) {
@@ -26,10 +26,8 @@ if (location.hash) {
     }
 }
 
-var bbox = new L.LatLngBounds(
-    new L.LatLng(+bboxString[0], +bboxString[1]),
-    new L.LatLng(+bboxString[2], +bboxString[3]));
-
+var bbox = makeBbox(bboxArray);
+var bboxString = filteredBbox ? bbox.toBBoxString() : null;
 
 var ignore = ['bot-mode'];
 var BING_KEY = 'Arzdiw4nlOJzRwOz__qailc8NiR31Tt51dN2D7cm57NrnceZnCpgOkmJhNpGoppU';
@@ -168,7 +166,7 @@ osmStream.runFn(function(err, data) {
     });
     // if (queue.length > 2000) queue = queue.slice(0, 2000);
     runSpeed = 1500;
-});
+}, null, null, bboxString);
 
 function doDrawWay() {
     document.getElementById('queuesize').innerHTML = queue.length;
