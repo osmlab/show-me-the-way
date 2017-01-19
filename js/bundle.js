@@ -7,6 +7,8 @@ var osmStream = require('osm-stream'),
     query_string = require('querystring');
 
 var bboxString = ["-90.0", "-180.0", "90.0", "180.0"];
+var mapCenter = [51.505, -0.09];
+var filteredBbox = false;
 var changeset_comment_match = null;
 if (location.hash) {
     var parsed_hash = query_string.parse(location.hash.replace('#', ''));
@@ -17,12 +19,18 @@ if (location.hash) {
     } else {
         if (parsed_hash.bounds) {
             bboxString = parsed_hash.bounds.split(',');
+            filteredBbox = true;
         }
         if (parsed_hash.comment) {
             changeset_comment_match = parsed_hash.comment;
         }
     }
 }
+
+var bbox = new L.LatLngBounds(
+    new L.LatLng(+bboxString[0], +bboxString[1]),
+    new L.LatLng(+bboxString[2], +bboxString[3]));
+
 
 var ignore = ['bot-mode'];
 var BING_KEY = 'Arzdiw4nlOJzRwOz__qailc8NiR31Tt51dN2D7cm57NrnceZnCpgOkmJhNpGoppU';
@@ -33,7 +41,12 @@ var map = L.map('map', {
     scrollWheelZoom: false,
     doubleClickZoom: false,
     boxZoom: false
-}).setView([51.505, -0.09], 13);
+});
+if (filteredBbox) {
+    map.fitBounds(bbox);
+} else {
+    map.setView(mapCenter, 13);
+}
 
 var overview_map = L.map('overview_map', {
     zoomControl: false,
@@ -42,7 +55,12 @@ var overview_map = L.map('overview_map', {
     scrollWheelZoom: false,
     doubleClickZoom: false,
     boxZoom: false
-}).setView([51.505, -0.09], 1);
+});
+if (filteredBbox) {
+    overview_map.fitBounds(bbox);
+} else {
+    overview_map.setView(mapCenter, 4);
+}
 
 var bing = new L.BingLayer(BING_KEY, 'Aerial').addTo(map);
 
@@ -62,10 +80,6 @@ var changeset_cache = LRU(50);
 // Remove Leaflet shoutouts
 map.attributionControl.setPrefix('');
 overview_map.attributionControl.setPrefix('');
-
-var bbox = new L.LatLngBounds(
-        new L.LatLng(+bboxString[0], +bboxString[1]),
-        new L.LatLng(+bboxString[2], +bboxString[3]));
 
 changeset_info.innerHTML = '<div class="loading">loading...</div>';
 
