@@ -41,7 +41,7 @@ var overview_map = L.map('overview_map', {
     scrollWheelZoom: false,
     doubleClickZoom: false,
     boxZoom: false
-}).setView([51.505, -0.09], 1);
+}).setView([51.505, -0.09], 4);
 
 var bing = new L.BingLayer(BING_KEY, 'Aerial').addTo(map);
 
