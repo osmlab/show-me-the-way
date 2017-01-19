@@ -23,6 +23,7 @@ if (location.hash) {
         }
         if (parsed_hash.comment) {
             changeset_comment_match = parsed_hash.comment;
+            document.title += ' #' + changeset_comment_match;
         }
     }
 }
