@@ -28,7 +28,10 @@ if (location.hash) {
 }
 
 var bbox = makeBbox(bboxArray);
-var bboxString = filteredBbox ? bbox.toBBoxString() : null;
+var bboxString = null;
+if (filteredBbox && isBboxSizeAcceptable(bbox)) {
+    bboxString = bbox.toBBoxString();
+}
 
 var ignore = ['bot-mode'];
 var BING_KEY = 'Arzdiw4nlOJzRwOz__qailc8NiR31Tt51dN2D7cm57NrnceZnCpgOkmJhNpGoppU';
@@ -52,7 +55,8 @@ var overview_map = L.map('overview_map', {
     touchZoom: false,
     scrollWheelZoom: false,
     doubleClickZoom: false,
-    boxZoom: false
+    boxZoom: false,
+    minZoom: 4
 });
 if (filteredBbox) {
     overview_map.fitBounds(bbox);
@@ -82,6 +86,15 @@ overview_map.attributionControl.setPrefix('');
 changeset_info.innerHTML = '<div class="loading">loading...</div>';
 
 var lastLocation = L.latLng(0, 0);
+
+function isBboxSizeAcceptable(bbox) { // heuristic to fetch
+    var width = Math.abs(bbox.getSouthWest().lat - bbox.getNorthEast().lat);
+    var height = Math.abs(bbox.getSouthWest().lng - bbox.getNorthEast().lng);
+    // A guesstimate of the maximum filtered area size that the server would accept.
+    // For larger areas, we fall back to the global (server-cached) change file
+    // ...and we process it client-side as usual.
+    return (width * height) < 2;
+}
 
 function farFromLast(c) {
     try {
