@@ -57,7 +57,8 @@ var overview_map = L.map('overview_map', {
     scrollWheelZoom: false,
     doubleClickZoom: false,
     boxZoom: false,
-    minZoom: 4
+    minZoom: 4,
+    maxZoom: 8
 });
 if (filteredBbox) {
     overview_map.fitBounds(bbox);
