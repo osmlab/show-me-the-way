@@ -68,7 +68,7 @@ if (filteredBbox) {
 
 var bing = new L.BingLayer(BING_KEY, 'Aerial').addTo(map);
 
-var osm = new L.TileLayer('//a.tiles.mapbox.com/v3/saman.map-f8nluy8d/{z}/{x}/{y}.jpg70', {
+var osm = new L.TileLayer('https://api.mapbox.com/styles/v1/openstreetmapus/cj8xtgojqhd3z2sorzpi01csj/tiles/256/{z}/{x}/{y}?access_token=pk.eyJ1Ijoib3BlbnN0cmVldG1hcHVzIiwiYSI6ImNpc2x0eGF1MjBhZTIydXB1eTkxbTdrdXoifQ.9reDkEfppIvAOfAD3tRDJQ', {
     minZoom: 4,
     maxZoom: 8,
     attribution: '<a href="https://mapbox.com/about/maps/">Terms &amp; Conditions</a>'
