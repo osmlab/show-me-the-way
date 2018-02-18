@@ -169,8 +169,7 @@ osmStream.runFn(function(err, data) {
             var happened_today = moment(f.neu && f.neu.timestamp).format("MMM Do YY") === moment().format("MMM Do YY");
             var user_not_ignored = (f.old && ignore.indexOf(f.old.user) === -1) || (f.neu && ignore.indexOf(f.neu.user) === -1);
             var way_long_enough = (f.old && f.old.linestring && f.old.linestring.length > 4) || (f.neu && f.neu.linestring && f.neu.linestring.length > 4);
-            return is_a_way &&
-                (bbox_intersects_old || bbox_intersects_new) &&
+            return (bbox_intersects_old || bbox_intersects_new) &&
                 happened_today &&
                 user_not_ignored &&
                 way_long_enough;
