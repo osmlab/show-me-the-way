@@ -75,7 +75,7 @@ var osm = new L.TileLayer('https://api.mapbox.com/styles/v1/openstreetmapus/cj8x
     attribution: '<a href="https://mapbox.com/about/maps/">Terms &amp; Conditions</a>'
 }).addTo(overview_map);
 
-var lineGroup = L.featureGroup().addTo(map);
+var mapElementGroup = L.featureGroup().addTo(map);
 
 var changeset_info = document.getElementById('changeset_info');
 var changeset_tmpl = _.template(document.getElementById('changeset-template').innerHTML);
@@ -184,46 +184,46 @@ osmStream.runFn(function(err, data) {
     runSpeed = 1500;
 }, null, null, bboxString);
 
-function doDrawWay() {
+function doDrawMapElement() {
     document.getElementById('queuesize').textContent = queue.length;
     if (queue.length) {
         var change = queue.pop();
-        var way = change.neu || change.old;
+        var mapElement = change.neu || change.old;
 
-        // Skip ways that are part of a changeset we don't care about
-        if (changeset_comment_match && way.changeset) {
-            fetchChangesetData(way.changeset, function(err, changeset_data) {
+        // Skip map elements that are part of a changeset we don't care about
+        if (changeset_comment_match && mapElement.changeset) {
+            fetchChangesetData(mapElement.changeset, function(err, changeset_data) {
                 if (err) {
                     console.log("Error filtering changeset: " + err);
-                    doDrawWay();
+                    doDrawMapElement();
                     return;
                 }
 
                 if (changeset_data.comment && changeset_data.comment.indexOf(changeset_comment_match) > -1) {
-                    console.log("Drawing way " + way.id);
-                    drawWay(change, function() {
-                        doDrawWay();
+                    console.log("Drawing map element " + mapElement.id);
+                    drawMapElement(change, function() {
+                        doDrawMapElement();
                     });
                 } else {
-                    console.log("Skipping way " + way.id + " because changeset " + way.changeset + " didn't match " + changeset_comment_match);
-                    doDrawWay();
+                    console.log("Skipping map element " + mapElement.id + " because changeset " + mapElement.changeset + " didn't match " + changeset_comment_match);
+                    doDrawMapElement();
                 }
             });
         } else {
-            drawWay(change, function() {
-                doDrawWay();
+            drawMapElement(change, function() {
+                doDrawMapElement();
             });
         }
     } else {
-        window.setTimeout(doDrawWay, runSpeed);
+        window.setTimeout(doDrawMapElement, runSpeed);
     }
 }
 
-function pruneLines() {
+function pruneMapElements() {
     var mb = map.getBounds();
-    lineGroup.eachLayer(function(l) {
+    mapElementGroup.eachLayer(function(l) {
         if (!mb.intersects(l.getBounds())) {
-            lineGroup.removeLayer(l);
+            mapElementGroup.removeLayer(l);
         } else {
             l.setStyle({ opacity: 0.5 });
         }
@@ -244,20 +244,20 @@ function setTagText(change) {
     return change;
 }
 
-function drawWay(change, cb) {
-    pruneLines();
+function drawMapElement(change, cb) {
+    pruneMapElements();
 
-    var way = change.type === 'delete' ? change.old : change.neu;
+    var mapElement = change.type === 'delete' ? change.old : change.neu;
     change.meta = {
-        id: way.id,
-        type: way.type,
+        id: mapElement.id,
+        type: mapElement.type,
         // Always pull in the new side user, timestamp, and changeset info
         user: change.neu.user,
         changeset: change.neu.changeset
     };
 
     // Zoom to the area in question
-    var bounds = makeBbox(way.bounds);
+    var bounds = makeBbox(mapElement.bounds);
 
     if (farFromLast(bounds.getCenter())) showLocation(bounds.getCenter());
     showComment(change.neu.changeset);
@@ -272,35 +272,35 @@ function drawWay(change, cb) {
 
     var color = { 'create': '#B7FF00', 'modify': '#FF00EA', 'delete': '#FF0000' }[change.type];
     var newLine;
-    if (way.tags.building || way.tags.area) {
+    if (mapElement.tags.building || mapElement.tags.area) {
         newLine = L.polygon([], {
             opacity: 1,
             color: color,
             fill: color
-        }).addTo(lineGroup);
+        }).addTo(mapElementGroup);
     } else {
         newLine = L.polyline([], {
             opacity: 1,
             color: color
-        }).addTo(lineGroup);
+        }).addTo(mapElementGroup);
     }
     // This is a bit lower than 3000 because we want the whole way
     // to stay on the screen for a bit before moving on.
-    var perPt = runSpeed / way.linestring.length;
+    var perPt = runSpeed / mapElement.linestring.length;
 
     function drawPt(pt) {
         newLine.addLatLng(pt);
-        if (way.linestring.length) {
+        if (mapElement.linestring.length) {
             window.setTimeout(function() {
-                drawPt(way.linestring.pop());
+                drawPt(mapElement.linestring.pop());
             }, perPt);
         } else {
             window.setTimeout(cb, perPt * 2);
         }
     }
 
-    newLine.addLatLng(way.linestring.pop());
-    drawPt(way.linestring.pop());
+    newLine.addLatLng(mapElement.linestring.pop());
+    drawPt(mapElement.linestring.pop());
 }
 
-doDrawWay();
+doDrawMapElement();
