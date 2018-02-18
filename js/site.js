@@ -115,7 +115,7 @@ function showLocation(ll) {
         crossOrigin: true,
         type: 'json'
     }, function(resp) {
-        document.getElementById('reverse-location').innerHTML =
+        document.getElementById('reverse-location').textContent =
             '' + resp.display_name + '';
     });
 }
@@ -147,7 +147,7 @@ function fetchChangesetData(id, callback) {
 
 function showComment(id) {
     fetchChangesetData(id, function(err, changeset_data) {
-        document.getElementById('comment').innerHTML = changeset_data.comment + ' in ' + changeset_data.created_by;
+        document.getElementById('comment').textContent = changeset_data.comment + ' in ' + changeset_data.created_by;
     });
 }
 
@@ -186,7 +186,7 @@ osmStream.runFn(function(err, data) {
 }, null, null, bboxString);
 
 function doDrawWay() {
-    document.getElementById('queuesize').innerHTML = queue.length;
+    document.getElementById('queuesize').textContent = queue.length;
     if (queue.length) {
         var change = queue.pop();
         var way = change.neu || change.old;
