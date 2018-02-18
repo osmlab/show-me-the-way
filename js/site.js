@@ -233,14 +233,15 @@ function pruneMapElements() {
 function setTagText(change) {
     var showTags = ['building', 'natural', 'leisure', 'waterway',
         'barrier', 'landuse', 'highway', 'power'];
+    var mapElement = change.type === 'delete' ? change.old : change.neu;
+    var tags = mapElement.tags;
     for (var i = 0; i < showTags.length; i++) {
-        var tags = change.type === 'delete' ? change.old.tags : change.neu.tags;
         if (tags[showTags[i]]) {
             change.tagtext = showTags[i] + '=' + tags[showTags[i]];
             return change;
         }
     }
-    change.tagtext = 'a way';
+    change.tagtext = 'a ' + mapElement.type;
     return change;
 }
 
