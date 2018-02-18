@@ -166,7 +166,7 @@ osmStream.runFn(function(err, data) {
         if (is_a_way) {
             var bbox_intersects_old = (f.old && f.old.bounds && bbox.intersects(makeBbox(f.old.bounds)));
             var bbox_intersects_new = (f.neu && f.neu.bounds && bbox.intersects(makeBbox(f.neu.bounds)));
-            var happened_today = moment((f.neu && f.neu.timestamp) || (f.neu && f.neu.timestamp)).format("MMM Do YY") === moment().format("MMM Do YY");
+            var happened_today = moment(f.neu && f.neu.timestamp).format("MMM Do YY") === moment().format("MMM Do YY");
             var user_not_ignored = (f.old && ignore.indexOf(f.old.user) === -1) || (f.neu && ignore.indexOf(f.neu.user) === -1);
             var way_long_enough = (f.old && f.old.linestring && f.old.linestring.length > 4) || (f.neu && f.neu.linestring && f.neu.linestring.length > 4);
             return is_a_way &&
@@ -178,8 +178,8 @@ osmStream.runFn(function(err, data) {
             return false;
         }
     }).sort(function(a, b) {
-        return (+new Date((a.neu && a.neu.timestamp) || (a.neu && a.neu.timestamp))) -
-            (+new Date((b.neu && b.neu.timestamp) || (b.neu && b.neu.timestamp)));
+        return (+new Date((a.neu && a.neu.timestamp))) -
+            (+new Date((b.neu && b.neu.timestamp)));
     });
     // if (queue.length > 2000) queue = queue.slice(0, 2000);
     runSpeed = 1500;
