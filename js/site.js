@@ -183,6 +183,19 @@ osmStream.runFn(function(err, data) {
                     happened_today &&
                     user_not_ignored &&
                     way_long_enough;
+            case 'node':
+                var has_tags = (f.neu && Object.keys(f.neu.tags || {}).length > 0)
+                    || (f.old && Object.keys(f.old.tags || {}).length > 0);
+                if (!has_tags) { // shortcut to skip more expensive operations
+                    return false;
+                }
+                var bbox_contains_old = (f.old && f.old.lat && f.old.lon && bbox.contains(new L.LatLng(f.old.lat, f.old.lon)));
+                var bbox_contains_new = (f.neu && f.neu.lat && f.neu.lon && bbox.contains(new L.LatLng(f.neu.lat, f.neu.lon)));
+                var happened_today = happenedToday(f.neu && f.neu.timestamp);
+                var user_not_ignored = userNotIgnored(f);
+                return (bbox_contains_old || bbox_contains_new) &&
+                    happened_today &&
+                    user_not_ignored;
             default:
                 return false;
         }
@@ -242,7 +255,9 @@ function pruneMapElements() {
 
 function setTagText(change) {
     var showTags = ['building', 'natural', 'leisure', 'waterway',
-        'barrier', 'landuse', 'highway', 'power'];
+        'barrier', 'landuse', 'highway', 'power', 'amenity', 'place',
+        'addr:housenumber', 'memorial', 'historic', 'shop', 'office',
+        'emergency'];
     var mapElement = change.type === 'delete' ? change.old : change.neu;
     var tags = mapElement.tags;
     for (var i = 0; i < showTags.length; i++) {
@@ -268,7 +283,9 @@ function drawMapElement(change, cb) {
     };
 
     // Zoom to the area in question
-    var bounds = makeBbox(mapElement.bounds);
+    var bounds = mapElement.type === 'way'
+        ? makeBbox(mapElement.bounds)
+        : makeBbox([mapElement.lat, mapElement.lon, mapElement.lat, mapElement.lon]);
 
     if (farFromLast(bounds.getCenter())) showLocation(bounds.getCenter());
     showComment(change.neu.changeset);
@@ -282,36 +299,47 @@ function drawMapElement(change, cb) {
     changeset_info.innerHTML = changeset_tmpl({ change: change });
 
     var color = { 'create': '#B7FF00', 'modify': '#FF00EA', 'delete': '#FF0000' }[change.type];
-    var newLine;
-    if (mapElement.tags.building || mapElement.tags.area) {
-        newLine = L.polygon([], {
-            opacity: 1,
-            color: color,
-            fill: color
-        }).addTo(mapElementGroup);
-    } else {
-        newLine = L.polyline([], {
-            opacity: 1,
-            color: color
-        }).addTo(mapElementGroup);
-    }
-    // This is a bit lower than 3000 because we want the whole way
-    // to stay on the screen for a bit before moving on.
-    var perPt = runSpeed / mapElement.linestring.length;
+    switch (mapElement.type) {
+        case 'way':
+            var newLine;
+            if (mapElement.tags.building || mapElement.tags.area) {
+                newLine = L.polygon([], {
+                    opacity: 1,
+                    color: color,
+                    fill: color
+                }).addTo(mapElementGroup);
+            } else {
+                newLine = L.polyline([], {
+                    opacity: 1,
+                    color: color
+                }).addTo(mapElementGroup);
+            }
+            // This is a bit lower than 3000 because we want the whole way
+            // to stay on the screen for a bit before moving on.
+            var perPt = runSpeed / mapElement.linestring.length;
 
-    function drawPt(pt) {
-        newLine.addLatLng(pt);
-        if (mapElement.linestring.length) {
-            window.setTimeout(function() {
-                drawPt(mapElement.linestring.pop());
-            }, perPt);
-        } else {
-            window.setTimeout(cb, perPt * 2);
-        }
-    }
+            function drawPt(pt) {
+                newLine.addLatLng(pt);
+                if (mapElement.linestring.length) {
+                    window.setTimeout(function() {
+                        drawPt(mapElement.linestring.pop());
+                    }, perPt);
+                } else {
+                    window.setTimeout(cb, perPt * 2);
+                }
+            }
 
-    newLine.addLatLng(mapElement.linestring.pop());
-    drawPt(mapElement.linestring.pop());
+            newLine.addLatLng(mapElement.linestring.pop());
+            drawPt(mapElement.linestring.pop());
+            break;
+        case 'node':
+            L.circleMarker([mapElement.lat, mapElement.lon], {
+                opacity: 1,
+                color: color
+            }).addTo(mapElementGroup);
+            window.setTimeout(cb, runSpeed);
+            break;
+    }
 }
 
 doDrawMapElement();
