@@ -158,6 +158,15 @@ function makeBbox(bounds_array) {
     );
 }
 
+function happenedToday(timestamp) {
+    return moment(timestamp).format("MMM Do YY") === moment().format("MMM Do YY");
+}
+
+function userNotIgnored(change) {
+    return (change.old && ignore.indexOf(change.old.user) === -1)
+        || (change.neu && ignore.indexOf(change.neu.user) === -1);
+}
+
 var runSpeed = 2000;
 
 osmStream.runFn(function(err, data) {
@@ -167,8 +176,8 @@ osmStream.runFn(function(err, data) {
             case 'way':
                 var bbox_intersects_old = (f.old && f.old.bounds && bbox.intersects(makeBbox(f.old.bounds)));
                 var bbox_intersects_new = (f.neu && f.neu.bounds && bbox.intersects(makeBbox(f.neu.bounds)));
-                var happened_today = moment(f.neu && f.neu.timestamp).format("MMM Do YY") === moment().format("MMM Do YY");
-                var user_not_ignored = (f.old && ignore.indexOf(f.old.user) === -1) || (f.neu && ignore.indexOf(f.neu.user) === -1);
+                var happened_today = happenedToday(f.neu && f.neu.timestamp);
+                var user_not_ignored = userNotIgnored(f);
                 var way_long_enough = (f.old && f.old.linestring && f.old.linestring.length > 4) || (f.neu && f.neu.linestring && f.neu.linestring.length > 4);
                 return (bbox_intersects_old || bbox_intersects_new) &&
                     happened_today &&
