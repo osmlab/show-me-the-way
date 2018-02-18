@@ -1,3 +1,5 @@
+"use strict";
+
 var osmStream = require('osm-stream'),
     reqwest = require('reqwest'),
     moment = require('moment'),
@@ -119,7 +121,7 @@ function showLocation(ll) {
 }
 
 function fetchChangesetData(id, callback) {
-    cached_changeset_data = changeset_cache.get(id);
+    var cached_changeset_data = changeset_cache.get(id);
 
     if (!cached_changeset_data) {
         var changeset_url_tmpl = '//www.openstreetmap.org/api/0.6/changeset/{id}';
@@ -270,6 +272,7 @@ function drawWay(change, cb) {
     changeset_info.innerHTML = changeset_tmpl({ change: change });
 
     var color = { 'create': '#B7FF00', 'modify': '#FF00EA', 'delete': '#FF0000' }[change.type];
+    var newLine;
     if (way.tags.building || way.tags.area) {
         newLine = L.polygon([], {
             opacity: 1,
