@@ -4,7 +4,8 @@
   "description": "see OSM edits happen in real time",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "browserify js/site.js > js/bundle.js"
   },
   "repository": "",
   "author": "",
@@ -16,5 +17,8 @@
     "reqwest": "~0.7.2",
     "moment": "~2.0.0",
     "lru-cache": "~4.0.0"
+  },
+  "devDependencies": {
+    "browserify": "16.1.0"
   }
 }
