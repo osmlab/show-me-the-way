@@ -333,11 +333,28 @@ function drawMapElement(change, cb) {
             drawPt(mapElement.linestring.pop());
             break;
         case 'node':
-            L.circleMarker([mapElement.lat, mapElement.lon], {
+            // Calculate marker radii such that final radius is ~10px
+            var radii = [];
+            for (var i = 0; i <= 25; i += 1) {
+                radii.push(17 * Math.sin(i / 10));
+            }
+            var newMarker = L.circleMarker([mapElement.lat, mapElement.lon], {
                 opacity: 1,
                 color: color
             }).addTo(mapElementGroup);
-            window.setTimeout(cb, runSpeed);
+
+            var perRadius = runSpeed / radii.length;
+            function nodeMarkerAnimation() {
+                newMarker.setRadius(radii.shift());
+                if (radii.length) {
+                    window.setTimeout(nodeMarkerAnimation, perRadius);
+                }
+                else {
+                    window.setTimeout(cb, perRadius * 2);
+                }
+            }
+
+            nodeMarkerAnimation();
             break;
     }
 }
