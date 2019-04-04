@@ -11,14 +11,14 @@
   "author": "",
   "license": "BSD",
   "dependencies": {
-    "osm-stream": "osmlab/osm-stream#v0.0.14",
-    "ration": "0.0.0",
-    "underscore": "~1.4.4",
-    "reqwest": "~0.7.2",
+    "lru-cache": "~4.0.0",
     "moment": "~2.19.3",
-    "lru-cache": "~4.0.0"
+    "osm-stream": "github:osmlab/osm-stream#v0.0.14",
+    "ration": "0.0.0",
+    "reqwest": "~0.7.2",
+    "underscore": "~1.4.4"
   },
   "devDependencies": {
-    "browserify": "^16.1.0"
+    "browserify": "^16.2.3"
   }
 }
