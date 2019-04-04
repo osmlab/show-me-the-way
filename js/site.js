@@ -36,7 +36,7 @@ if (filteredBbox && isBboxSizeAcceptable(bbox)) {
 }
 
 var ignore = ['bot-mode'];
-var BING_KEY = 'Arzdiw4nlOJzRwOz__qailc8NiR31Tt51dN2D7cm57NrnceZnCpgOkmJhNpGoppU';
+const mapboxKey = 'pk.eyJ1Ijoib3BlbnN0cmVldG1hcHVzIiwiYSI6ImNqdTM1ZWxqeTBqa2MzeXBhODIxdnE2eG8ifQ.zyhAo181muDzPRdyYsqLGw';
 
 var map = L.map('map', {
     zoomControl: false,
@@ -67,11 +67,19 @@ if (filteredBbox) {
     overview_map.setView(mapCenter, 4);
 }
 
-var bing = new L.BingLayer(BING_KEY, 'Aerial').addTo(map);
+var satellite = new L.TileLayer(
+    'https://api.mapbox.com/styles/v1/openstreetmapus/{style_id}/tiles/256/{z}/{x}/{y}?access_token={key}', {
+    style_id: 'cju35gljt1bpm1fp2z93dlyca',
+    key: mapboxKey,
+    attribution: '<a href="https://mapbox.com/about/maps/">Terms &amp; Conditions</a>'
+}).addTo(map);
 
-var osm = new L.TileLayer('https://api.mapbox.com/styles/v1/openstreetmapus/cj8xtgojqhd3z2sorzpi01csj/tiles/256/{z}/{x}/{y}?access_token=pk.eyJ1Ijoib3BlbnN0cmVldG1hcHVzIiwiYSI6ImNpc2x0eGF1MjBhZTIydXB1eTkxbTdrdXoifQ.9reDkEfppIvAOfAD3tRDJQ', {
+var osm = new L.TileLayer(
+    'https://api.mapbox.com/styles/v1/openstreetmapus/{style_id}/tiles/256/{z}/{x}/{y}?access_token={key}', {
     minZoom: 4,
     maxZoom: 8,
+    style_id: 'cj8xtgojqhd3z2sorzpi01csj',
+    key: mapboxKey,
     attribution: '<a href="https://mapbox.com/about/maps/">Terms &amp; Conditions</a>'
 }).addTo(overview_map);
 
