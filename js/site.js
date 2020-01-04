@@ -9,6 +9,7 @@ var osmStream = require('osm-stream'),
 
 var bboxArray = ["-90.0", "-180.0", "90.0", "180.0"];
 var mapCenter = [51.505, -0.09];
+const maxDiffRetries = 1;
 var filteredBbox = false;
 var changeset_comment_match = null;
 if (location.hash) {
@@ -213,7 +214,7 @@ osmStream.runFn(function(err, data) {
     });
     // if (queue.length > 2000) queue = queue.slice(0, 2000);
     runSpeed = 1500;
-}, null, null, bboxString);
+}, null, null, bboxString, maxDiffRetries);
 
 function doDrawMapElement() {
     document.getElementById('queuesize').textContent = queue.length;
