@@ -33,9 +33,12 @@
     <script>
     //<![CDATA[
     var map = L.map('map');
-    var osm = new L.TileLayer('//a.tiles.mapbox.com/v3/tmcw.map-d11l16t9/{z}/{x}/{y}.jpg70').addTo(map);
-    map.attributionControl.setPrefix('');
-    map.attributionControl.addAttribution('Data <a href="http://www.openstreetmap.org/copyright">&copy;</a> <a href="http://www.openstreetmap.org/">OpenStreetMap contributors</a>');
+    const mapboxKey = 'pk.eyJ1Ijoib3BlbnN0cmVldG1hcHVzIiwiYSI6ImNqdTM1ZWxqeTBqa2MzeXBhODIxdnE2eG8ifQ.zyhAo181muDzPRdyYsqLGw';
+    var osm = new L.TileLayer(
+        'https://api.mapbox.com/styles/v1/openstreetmapus/{style_id}/tiles/256/{z}/{x}/{y}?access_token={key}', {
+        style_id: 'cju35gljt1bpm1fp2z93dlyca',
+        key: mapboxKey,
+        attribution: '<a href="https://mapbox.com/about/maps/">Terms &amp; Conditions</a>'}).addTo(map);
     map.setView([0, 0], 3);
     var locationFilter = new L.LocationFilter().addTo(map);
     locationFilter.on("change", function (e) {
