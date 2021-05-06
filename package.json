@@ -16,7 +16,7 @@
     "osm-stream": "github:osmlab/osm-stream#v0.0.15",
     "ration": "0.0.0",
     "reqwest": "~0.7.2",
-    "underscore": "~1.4.4"
+    "underscore": "~1.12.1"
   },
   "devDependencies": {
     "browserify": "^16.2.3"
