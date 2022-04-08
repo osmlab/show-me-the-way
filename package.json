@@ -12,7 +12,7 @@
   "license": "BSD",
   "dependencies": {
     "lru-cache": "^4.0.2",
-    "moment": "~2.19.3",
+    "moment": "~2.29.2",
     "osm-stream": "github:osmlab/osm-stream#v0.0.15",
     "ration": "0.0.0",
     "reqwest": "~0.7.2",
