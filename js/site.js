@@ -1,7 +1,6 @@
 "use strict";
 
 var osmStream = require('osm-stream'),
-    reqwest = require('reqwest'),
     formatDistance = require('date-fns/formatDistanceStrict'),
     mustache = require('mustache'),
     LRU = require('lru-cache');
@@ -119,13 +118,14 @@ function farFromLast(c) {
 function showLocation(ll) {
     var nominatim_tmpl = '//nominatim.openstreetmap.org/reverse?format=json' +
         '&lat={lat}&lon={lon}&zoom=5';
-    reqwest({
-        url: nominatim_tmpl.replace('{lat}', ll.lat).replace('{lon}', ll.lng),
-        crossOrigin: true,
-        type: 'json'
-    }, function(resp) {
-        document.getElementById('reverse-location').textContent =
-            '' + resp.display_name + '';
+    fetch(nominatim_tmpl.replace('{lat}', ll.lat).replace('{lon}', ll.lng), {
+        mode: 'cors'
+    })
+    .then(response => response.json())
+    .then(data => {
+        document.getElementById('reverse-location').textContent = data.display_name;
+    }).catch(err => {
+        console.error('Error fetching location', err);
     });
 }
 
@@ -134,13 +134,15 @@ function fetchChangesetData(id, callback) {
 
     if (!cached_changeset_data) {
         var changeset_url_tmpl = '//www.openstreetmap.org/api/0.6/changeset/{id}';
-        reqwest({
-            url: changeset_url_tmpl.replace('{id}', id),
-            crossOrigin: true,
-            type: 'xml'
-        }, function(resp) {
+
+        fetch(changeset_url_tmpl.replace('{id}', id), {
+            mode: 'cors'
+        })
+        .then(response => response.text())
+        .then(responseString => new window.DOMParser().parseFromString(responseString, "text/xml"))
+        .then(data => {
             var changeset_data = {};
-            var tags = resp.getElementsByTagName('tag');
+            var tags = data.getElementsByTagName('tag');
             for (var i = 0; i < tags.length; i++) {
                 var key = tags[i].getAttribute('k');
                 var value = tags[i].getAttribute('v');
@@ -148,6 +150,9 @@ function fetchChangesetData(id, callback) {
             }
             changeset_cache.set(id, changeset_data);
             callback(null, changeset_data);
+        })
+        .catch(err => {
+            console.log('Error fetching changeset data', err);
         });
     } else {
         callback(null, cached_changeset_data);
