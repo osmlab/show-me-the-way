@@ -3,7 +3,7 @@
 var osmStream = require('osm-stream'),
     reqwest = require('reqwest'),
     formatDistance = require('date-fns/formatDistanceStrict'),
-    _ = require('underscore'),
+    mustache = require('mustache'),
     LRU = require('lru-cache');
 
 var bboxArray = ["-90.0", "-180.0", "90.0", "180.0"];
@@ -87,7 +87,7 @@ var osm = new L.TileLayer(
 var mapElementGroup = L.featureGroup().addTo(map);
 
 var changeset_info = document.getElementById('changeset_info');
-var changeset_tmpl = _.template(document.getElementById('changeset-template').innerHTML);
+var changeset_tmpl = document.getElementById('changeset-template').innerHTML;
 var queue = [];
 var changeset_cache = LRU(50);
 
@@ -179,7 +179,7 @@ function userNotIgnored(change) {
 var runSpeed = 2000;
 
 osmStream.runFn(function(err, data) {
-    queue = _.filter(data, function(f) {
+    queue = data.filter(f => {
         var type = (f.old && f.old.type) || (f.neu && f.neu.type);
         switch (type) {
             case 'way':
@@ -282,8 +282,10 @@ function setTagText(change) {
 function drawMapElement(change, cb) {
     pruneMapElements();
 
+    var past_tense = { modify: 'modified', create: 'created', 'delete': 'deleted' };
     var mapElement = change.type === 'delete' ? change.old : change.neu;
     change.meta = {
+        action: past_tense[change.type],
         id: mapElement.id,
         type: mapElement.type,
         // Always pull in the new side user, timestamp, and changeset info
@@ -305,8 +307,7 @@ function drawMapElement(change, cb) {
 
     map.fitBounds(bounds);
     overview_map.panTo(bounds.getCenter());
-    setTagText(change);
-    changeset_info.innerHTML = changeset_tmpl({ change: change });
+    changeset_info.innerHTML = mustache.render(changeset_tmpl, setTagText(change));
 
     var color = { 'create': '#B7FF00', 'modify': '#FF00EA', 'delete': '#FF0000' }[change.type];
     switch (mapElement.type) {
