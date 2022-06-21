@@ -1,11 +1,9 @@
 "use strict";
 
 var osmStream = require('osm-stream'),
-    reqwest = require('reqwest'),
-    moment = require('moment'),
-    _ = require('underscore'),
-    LRU = require('lru-cache'),
-    query_string = require('querystring');
+    formatDistance = require('date-fns/formatDistanceStrict'),
+    mustache = require('mustache'),
+    LRU = require('lru-cache');
 
 var bboxArray = ["-90.0", "-180.0", "90.0", "180.0"];
 var mapCenter = [51.505, -0.09];
@@ -13,7 +11,8 @@ const maxDiffRetries = 1;
 var filteredBbox = false;
 var changeset_comment_match = null;
 if (location.hash) {
-    var parsed_hash = query_string.parse(location.hash.replace('#', ''));
+    var parsed_hash = Object.fromEntries(new URLSearchParams(location.hash.replace('#', '')));
+
     if (parsed_hash.length === 1 && parsed_hash[Object.keys(parsed_hash)[0]] === null) {
         // To be backwards compatible with pages that assumed the only
         // item in the hash would be the bbox
@@ -87,7 +86,7 @@ var osm = new L.TileLayer(
 var mapElementGroup = L.featureGroup().addTo(map);
 
 var changeset_info = document.getElementById('changeset_info');
-var changeset_tmpl = _.template(document.getElementById('changeset-template').innerHTML);
+var changeset_tmpl = document.getElementById('changeset-template').innerHTML;
 var queue = [];
 var changeset_cache = LRU(50);
 
@@ -119,13 +118,14 @@ function farFromLast(c) {
 function showLocation(ll) {
     var nominatim_tmpl = '//nominatim.openstreetmap.org/reverse?format=json' +
         '&lat={lat}&lon={lon}&zoom=5';
-    reqwest({
-        url: nominatim_tmpl.replace('{lat}', ll.lat).replace('{lon}', ll.lng),
-        crossOrigin: true,
-        type: 'json'
-    }, function(resp) {
-        document.getElementById('reverse-location').textContent =
-            '' + resp.display_name + '';
+    fetch(nominatim_tmpl.replace('{lat}', ll.lat).replace('{lon}', ll.lng), {
+        mode: 'cors'
+    })
+    .then(response => response.json())
+    .then(data => {
+        document.getElementById('reverse-location').textContent = data.display_name;
+    }).catch(err => {
+        console.error('Error fetching location', err);
     });
 }
 
@@ -134,13 +134,15 @@ function fetchChangesetData(id, callback) {
 
     if (!cached_changeset_data) {
         var changeset_url_tmpl = '//www.openstreetmap.org/api/0.6/changeset/{id}';
-        reqwest({
-            url: changeset_url_tmpl.replace('{id}', id),
-            crossOrigin: true,
-            type: 'xml'
-        }, function(resp) {
+
+        fetch(changeset_url_tmpl.replace('{id}', id), {
+            mode: 'cors'
+        })
+        .then(response => response.text())
+        .then(responseString => new window.DOMParser().parseFromString(responseString, "text/xml"))
+        .then(data => {
             var changeset_data = {};
-            var tags = resp.getElementsByTagName('tag');
+            var tags = data.getElementsByTagName('tag');
             for (var i = 0; i < tags.length; i++) {
                 var key = tags[i].getAttribute('k');
                 var value = tags[i].getAttribute('v');
@@ -148,6 +150,9 @@ function fetchChangesetData(id, callback) {
             }
             changeset_cache.set(id, changeset_data);
             callback(null, changeset_data);
+        })
+        .catch(err => {
+            console.log('Error fetching changeset data', err);
         });
     } else {
         callback(null, cached_changeset_data);
@@ -168,7 +173,7 @@ function makeBbox(bounds_array) {
 }
 
 function happenedToday(timestamp) {
-    return moment(timestamp).format("MMM Do YY") === moment().format("MMM Do YY");
+    return (new Date(timestamp).toDateString() === new Date().toDateString());
 }
 
 function userNotIgnored(change) {
@@ -179,7 +184,7 @@ function userNotIgnored(change) {
 var runSpeed = 2000;
 
 osmStream.runFn(function(err, data) {
-    queue = _.filter(data, function(f) {
+    queue = data.filter(f => {
         var type = (f.old && f.old.type) || (f.neu && f.neu.type);
         switch (type) {
             case 'way':
@@ -282,8 +287,10 @@ function setTagText(change) {
 function drawMapElement(change, cb) {
     pruneMapElements();
 
+    var past_tense = { modify: 'modified', create: 'created', 'delete': 'deleted' };
     var mapElement = change.type === 'delete' ? change.old : change.neu;
     change.meta = {
+        action: past_tense[change.type],
         id: mapElement.id,
         type: mapElement.type,
         // Always pull in the new side user, timestamp, and changeset info
@@ -299,13 +306,13 @@ function drawMapElement(change, cb) {
     if (farFromLast(bounds.getCenter())) showLocation(bounds.getCenter());
     showComment(change.neu.changeset);
 
-    var timedate = moment(change.neu.timestamp);
-    change.timetext = timedate.fromNow();
+    change.timetext = formatDistance(new Date(change.neu.timestamp), new Date(), {
+        addSuffix: true
+    })
 
     map.fitBounds(bounds);
     overview_map.panTo(bounds.getCenter());
-    setTagText(change);
-    changeset_info.innerHTML = changeset_tmpl({ change: change });
+    changeset_info.innerHTML = mustache.render(changeset_tmpl, setTagText(change));
 
     var color = { 'create': '#B7FF00', 'modify': '#FF00EA', 'delete': '#FF0000' }[change.type];
     switch (mapElement.type) {

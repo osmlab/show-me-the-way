@@ -24,12 +24,11 @@
     <div id='map' class='col12 full-height'></div>
     <a href='http://openstreetmap.org/' class='byosm'></a>
 </div>
-    <script id='changeset-template' type='template'>
-<% var past_tense = { modify: 'modified', create: 'created', 'delete': 'deleted' }; %>
-<p><a target='_blank' href='//openstreetmap.org/browse/changeset/<%-change.meta.changeset%>'><%-change.timetext%></a> <a target='_blank' href='//openstreetmap.org/user/<%- change.meta.user %>'><%- change.meta.user %></a>
-     <%- past_tense[change.type] %> <a target='_blank' href='//openstreetmap.org/browse/<%- change.meta.type %>/<%- change.meta.id %>'><%- change.tagtext %></a>
-    </p>
-    </script>
+    <template id='changeset-template'>
+<p><a target='_blank' href='//openstreetmap.org/browse/changeset/{{meta.changeset}}'>{{timetext}}</a> <a target='_blank' href='//openstreetmap.org/user/{{meta.user}}'>{{meta.user}}</a>
+     {{meta.action}} <a target='_blank' href='//openstreetmap.org/browse/{{meta.type}}/{{meta.id}}'>{{tagtext}}</a>
+</p>
+    </template>
     <script src='//cdnjs.cloudflare.com/ajax/libs/leaflet/0.5/leaflet.js'></script>
     <script src='js/bundle.js'></script>
     <script type="text/javascript">
