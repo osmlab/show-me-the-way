@@ -15,7 +15,6 @@
     "lru-cache": "^4.0.2",
     "mustache": "^4.2.0",
     "osm-stream": "github:osmlab/osm-stream#v0.0.15",
-    "ration": "0.0.0",
     "reqwest": "~0.7.2"
   },
   "devDependencies": {
