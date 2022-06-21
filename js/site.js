@@ -4,8 +4,7 @@ var osmStream = require('osm-stream'),
     reqwest = require('reqwest'),
     moment = require('moment'),
     _ = require('underscore'),
-    LRU = require('lru-cache'),
-    query_string = require('querystring');
+    LRU = require('lru-cache');
 
 var bboxArray = ["-90.0", "-180.0", "90.0", "180.0"];
 var mapCenter = [51.505, -0.09];
@@ -13,7 +12,8 @@ const maxDiffRetries = 1;
 var filteredBbox = false;
 var changeset_comment_match = null;
 if (location.hash) {
-    var parsed_hash = query_string.parse(location.hash.replace('#', ''));
+    var parsed_hash = Object.fromEntries(new URLSearchParams(location.hash.replace('#', '')));
+
     if (parsed_hash.length === 1 && parsed_hash[Object.keys(parsed_hash)[0]] === null) {
         // To be backwards compatible with pages that assumed the only
         // item in the hash would be the bbox
