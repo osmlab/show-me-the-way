@@ -2,7 +2,7 @@
 
 var osmStream = require('osm-stream'),
     reqwest = require('reqwest'),
-    moment = require('moment'),
+    formatDistance = require('date-fns/formatDistanceStrict'),
     _ = require('underscore'),
     LRU = require('lru-cache');
 
@@ -168,7 +168,7 @@ function makeBbox(bounds_array) {
 }
 
 function happenedToday(timestamp) {
-    return moment(timestamp).format("MMM Do YY") === moment().format("MMM Do YY");
+    return (new Date(timestamp).toDateString() === new Date().toDateString());
 }
 
 function userNotIgnored(change) {
@@ -299,8 +299,9 @@ function drawMapElement(change, cb) {
     if (farFromLast(bounds.getCenter())) showLocation(bounds.getCenter());
     showComment(change.neu.changeset);
 
-    var timedate = moment(change.neu.timestamp);
-    change.timetext = timedate.fromNow();
+    change.timetext = formatDistance(new Date(change.neu.timestamp), new Date(), {
+        addSuffix: true
+    })
 
     map.fitBounds(bounds);
     overview_map.panTo(bounds.getCenter());
