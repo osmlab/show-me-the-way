@@ -292,13 +292,15 @@ function drawMapElement(change, cb) {
                     opacity: 1,
                     color: color,
                     fill: color,
-                    weight: 5
+                    weight: 5,
+                    interactive: false
                 }).addTo(mapElementGroup);
             } else {
                 newLine = L.polyline([], {
                     opacity: 1,
                     color: color,
-                    weight: 5
+                    weight: 5,
+                    interactive: false
                 }).addTo(mapElementGroup);
             }
             // This is a bit lower than 3000 because we want the whole way
@@ -329,7 +331,8 @@ function drawMapElement(change, cb) {
             const newMarker = L.circleMarker([mapElement.lat, mapElement.lon], {
                 opacity: 1,
                 color: color,
-                weight: 5
+                weight: 5,
+                interactive: false
             }).addTo(mapElementGroup);
 
             const perRadius = runSpeed / radii.length;
