@@ -226,7 +226,9 @@ function doDrawMapElement() {
 function pruneMapElements() {
     const mb = map.getBounds();
     mapElementGroup.eachLayer((l) => {
-        if (!mb.intersects(l.getBounds())) {
+        const bounds = 'getBounds' in l ? l.getBounds() : l.getLatLng().toBounds(10);
+
+        if (!mb.intersects(bounds)) {
             mapElementGroup.removeLayer(l);
         } else {
             l.setStyle({ opacity: 0.5 });
@@ -289,12 +291,14 @@ function drawMapElement(change, cb) {
                 newLine = L.polygon([], {
                     opacity: 1,
                     color: color,
-                    fill: color
+                    fill: color,
+                    weight: 5
                 }).addTo(mapElementGroup);
             } else {
                 newLine = L.polyline([], {
                     opacity: 1,
-                    color: color
+                    color: color,
+                    weight: 5
                 }).addTo(mapElementGroup);
             }
             // This is a bit lower than 3000 because we want the whole way
@@ -323,7 +327,8 @@ function drawMapElement(change, cb) {
             }
             const newMarker = L.circleMarker([mapElement.lat, mapElement.lon], {
                 opacity: 1,
-                color: color
+                color: color,
+                weight: 5
             }).addTo(mapElementGroup);
 
             const perRadius = runSpeed / radii.length;
