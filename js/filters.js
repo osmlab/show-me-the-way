@@ -14,8 +14,11 @@ export function userNotIgnored(change) {
 }
 
 export function wayLongEnough(change) {
-    return (change.old && change.old.linestring && change.old.linestring.length > 4)
-        || (change.neu && change.neu.linestring && change.neu.linestring.length > 4);
+    const type = (change.old && change.old.type) || (change.neu && change.neu.type);
+    if (type !== 'way') return true;
+
+    return (change.old.linestring && change.old.linestring.length > 4)
+        || (change.neu.linestring && change.neu.linestring.length > 4);
 }
 
 export function acceptableType(change) {
