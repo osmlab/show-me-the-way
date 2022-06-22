@@ -36,7 +36,7 @@ if (location.hash) {
 }
 
 const bbox = makeBbox(bboxArray);
-const bboxString = null;
+let bboxString = null;
 
 if (filteredBbox && isBboxSizeAcceptable(bbox)) {
     bboxString = bbox.toBBoxString();
@@ -75,14 +75,14 @@ if (filteredBbox) {
     overview_map.setView(mapCenter, 4);
 }
 
-const satellite = new L.TileLayer(
+new L.TileLayer(
     'https://api.mapbox.com/styles/v1/openstreetmapus/{style_id}/tiles/256/{z}/{x}/{y}?access_token={key}', {
     style_id: 'cju35gljt1bpm1fp2z93dlyca',
     key: mapboxKey,
     attribution: '<a href="https://mapbox.com/about/maps/">Terms &amp; Conditions</a>'
 }).addTo(map);
 
-const osm = new L.TileLayer(
+new L.TileLayer(
     'https://api.mapbox.com/styles/v1/openstreetmapus/{style_id}/tiles/256/{z}/{x}/{y}?access_token={key}', {
     minZoom: 4,
     maxZoom: 8,
@@ -285,7 +285,7 @@ function drawMapElement(change, cb) {
 
     const color = { 'create': '#B7FF00', 'modify': '#FF00EA', 'delete': '#FF0000' }[change.type];
     switch (mapElement.type) {
-        case 'way':
+        case 'way': {
             let newLine;
             if (mapElement.tags.building || mapElement.tags.area) {
                 newLine = L.polygon([], {
@@ -319,7 +319,8 @@ function drawMapElement(change, cb) {
             newLine.addLatLng(mapElement.linestring.pop());
             drawPt(mapElement.linestring.pop());
             break;
-        case 'node':
+        }
+        case 'node': {
             // Calculate marker radii such that final radius is ~10px
             const radii = [];
             for (let i = 0; i <= 25; i += 1) {
@@ -344,6 +345,7 @@ function drawMapElement(change, cb) {
 
             nodeMarkerAnimation();
             break;
+        }
     }
 }
 

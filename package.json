@@ -5,6 +5,7 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
+    "lint": "eslint js/*.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "browserify js/site.js -p esmify > js/bundle.js"
   },
@@ -19,6 +20,23 @@
   },
   "devDependencies": {
     "browserify": "^17.0.0",
+    "eslint": "^8.18.0",
     "esmify": "^2.1.1"
-  }
+  },
+  "eslintConfig": {
+      "extends": "eslint:recommended",
+      "env": {
+          "browser": true,
+          "node": true,
+          "es6": true
+      },
+      "globals": {
+        "L": "readonly"
+      },
+      "parserOptions": {
+          "sourceType": "module"
+      },
+      "rules": {}
+  },
+  "eslintIgnore": ["bundle.js"]
 }
