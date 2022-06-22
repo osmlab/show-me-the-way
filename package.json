@@ -24,19 +24,21 @@
     "esmify": "^2.1.1"
   },
   "eslintConfig": {
-      "extends": "eslint:recommended",
-      "env": {
-          "browser": true,
-          "node": true,
-          "es6": true
-      },
-      "globals": {
-        "L": "readonly"
-      },
-      "parserOptions": {
-          "sourceType": "module"
-      },
-      "rules": {}
+    "extends": "eslint:recommended",
+    "env": {
+      "browser": true,
+      "node": true,
+      "es6": true
+    },
+    "globals": {
+      "L": "readonly"
+    },
+    "parserOptions": {
+      "sourceType": "module"
+    },
+    "rules": {}
   },
-  "eslintIgnore": ["bundle.js"]
+  "eslintIgnore": [
+    "bundle.js"
+  ]
 }
