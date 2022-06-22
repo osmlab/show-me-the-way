@@ -10,11 +10,11 @@ import { happenedToday, userNotIgnored, acceptableType, hasTags, wayLongEnough,
     withinBbox
 } from './filters';
 
-const bboxArray = ["-90.0", "-180.0", "90.0", "180.0"];
+let bboxArray = ["-90.0", "-180.0", "90.0", "180.0"];
 const mapCenter = [51.505, -0.09];
 const maxDiffRetries = 1;
-const filteredBbox = false;
-const changeset_comment_match = null;
+let filteredBbox = false;
+let changeset_comment_match = null;
 
 if (location.hash) {
     const parsed_hash = Object.fromEntries(new URLSearchParams(location.hash.replace('#', '')));
