@@ -3,9 +3,10 @@
   "version": "0.0.0",
   "description": "see OSM edits happen in real time",
   "main": "index.js",
+  "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "browserify js/site.js > js/bundle.js"
+    "build": "browserify js/site.js -p esmify > js/bundle.js"
   },
   "repository": "",
   "author": "",
@@ -17,6 +18,7 @@
     "osm-stream": "github:osmlab/osm-stream#v0.0.15"
   },
   "devDependencies": {
-    "browserify": "^17.0.0"
+    "browserify": "^17.0.0",
+    "esmify": "^2.1.1"
   }
 }
