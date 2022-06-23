@@ -1,15 +1,20 @@
 "use strict";
 
-const osmStream = require('osm-stream');
-const formatDistance = require('date-fns/formatDistanceStrict');
-const mustache = require('mustache');
-const LRU = require('lru-cache');
+import osmStream from 'osm-stream';
+import { formatDistanceStrict } from 'date-fns';
+import { render } from 'mustache';
+import LRU from 'lru-cache';
 
-const bboxArray = ["-90.0", "-180.0", "90.0", "180.0"];
+import { makeBbox, isBboxSizeAcceptable } from './utils';
+import { happenedToday, userNotIgnored, acceptableType, hasTags, wayLongEnough,
+    withinBbox
+} from './filters';
+
+let bboxArray = ["-90.0", "-180.0", "90.0", "180.0"];
 const mapCenter = [51.505, -0.09];
 const maxDiffRetries = 1;
-const filteredBbox = false;
-const changeset_comment_match = null;
+let filteredBbox = false;
+let changeset_comment_match = null;
 
 if (location.hash) {
     const parsed_hash = Object.fromEntries(new URLSearchParams(location.hash.replace('#', '')));
@@ -31,13 +36,12 @@ if (location.hash) {
 }
 
 const bbox = makeBbox(bboxArray);
-const bboxString = null;
+let bboxString = null;
 
 if (filteredBbox && isBboxSizeAcceptable(bbox)) {
     bboxString = bbox.toBBoxString();
 }
 
-const ignore = ['bot-mode'];
 const mapboxKey = 'pk.eyJ1Ijoib3BlbnN0cmVldG1hcHVzIiwiYSI6ImNqdTM1ZWxqeTBqa2MzeXBhODIxdnE2eG8ifQ.zyhAo181muDzPRdyYsqLGw';
 
 const map = L.map('map', {
@@ -71,14 +75,14 @@ if (filteredBbox) {
     overview_map.setView(mapCenter, 4);
 }
 
-const satellite = new L.TileLayer(
+new L.TileLayer(
     'https://api.mapbox.com/styles/v1/openstreetmapus/{style_id}/tiles/256/{z}/{x}/{y}?access_token={key}', {
     style_id: 'cju35gljt1bpm1fp2z93dlyca',
     key: mapboxKey,
     attribution: '<a href="https://mapbox.com/about/maps/">Terms &amp; Conditions</a>'
 }).addTo(map);
 
-const osm = new L.TileLayer(
+new L.TileLayer(
     'https://api.mapbox.com/styles/v1/openstreetmapus/{style_id}/tiles/256/{z}/{x}/{y}?access_token={key}', {
     minZoom: 4,
     maxZoom: 8,
@@ -101,15 +105,6 @@ overview_map.attributionControl.setPrefix('');
 changeset_info.innerHTML = '<div class="loading">loading...</div>';
 
 let lastLocation = L.latLng(0, 0);
-
-function isBboxSizeAcceptable(bbox) { // heuristic to fetch
-    const width = Math.abs(bbox.getSouthWest().lat - bbox.getNorthEast().lat);
-    const height = Math.abs(bbox.getSouthWest().lng - bbox.getNorthEast().lng);
-    // A guesstimate of the maximum filtered area size that the server would accept.
-    // For larger areas, we fall back to the global (server-cached) change file
-    // ...and we process it client-side as usual.
-    return (width * height) < 2;
-}
 
 function farFromLast(c) {
     try {
@@ -165,61 +160,26 @@ function fetchChangesetData(id, callback) {
 
 function showComment(id) {
     fetchChangesetData(id, (err, changeset_data) => {
-        document.getElementById('comment').textContent = changeset_data.comment + ' in ' + changeset_data.created_by;
+        document.getElementById('comment').textContent = (
+            changeset_data.comment + ' in ' + changeset_data.created_by
+        );
     });
-}
-
-function makeBbox(bounds_array) {
-    return new L.LatLngBounds(
-        new L.LatLng(bounds_array[0], bounds_array[1]),
-        new L.LatLng(bounds_array[2], bounds_array[3])
-    );
-}
-
-function happenedToday(timestamp) {
-    return (new Date(timestamp).toDateString() === new Date().toDateString());
-}
-
-function userNotIgnored(change) {
-    return (change.old && ignore.indexOf(change.old.user) === -1)
-        || (change.neu && ignore.indexOf(change.neu.user) === -1);
 }
 
 let runSpeed = 2000;
 
 osmStream.runFn((err, data) => {
-    queue = data.filter(f => {
-        const type = (f.old && f.old.type) || (f.neu && f.neu.type);
-        const happened_today = happenedToday(f.neu && f.neu.timestamp);
-        const user_not_ignored = userNotIgnored(f);
-
-        switch (type) {
-            case 'way':
-                const bbox_intersects_old = (f.old && f.old.bounds && bbox.intersects(makeBbox(f.old.bounds)));
-                const bbox_intersects_new = (f.neu && f.neu.bounds && bbox.intersects(makeBbox(f.neu.bounds)));
-                const way_long_enough = (f.old && f.old.linestring && f.old.linestring.length > 4) || (f.neu && f.neu.linestring && f.neu.linestring.length > 4);
-                return (bbox_intersects_old || bbox_intersects_new) &&
-                    happened_today &&
-                    user_not_ignored &&
-                    way_long_enough;
-            case 'node':
-                const has_tags = (f.neu && Object.keys(f.neu.tags || {}).length > 0)
-                    || (f.old && Object.keys(f.old.tags || {}).length > 0);
-                if (!has_tags) { // shortcut to skip more expensive operations
-                    return false;
-                }
-                const bbox_contains_old = (f.old && f.old.lat && f.old.lon && bbox.contains(new L.LatLng(f.old.lat, f.old.lon)));
-                const bbox_contains_new = (f.neu && f.neu.lat && f.neu.lon && bbox.contains(new L.LatLng(f.neu.lat, f.neu.lon)));
-                return (bbox_contains_old || bbox_contains_new) &&
-                    happened_today &&
-                    user_not_ignored;
-            default:
-                return false;
-        }
-    }).sort((a, b) => {
-        return (+new Date((a.neu && a.neu.timestamp))) -
-            (+new Date((b.neu && b.neu.timestamp)));
-    });
+    queue = data
+        .filter(happenedToday)
+        .filter(userNotIgnored)
+        .filter(acceptableType)
+        .filter(hasTags)
+        .filter(wayLongEnough)
+        .filter(change => withinBbox(change, bbox))
+        .sort((a, b) => {
+            return (+new Date((a.neu && a.neu.timestamp)))
+                - (+new Date((b.neu && b.neu.timestamp)));
+        });
     // if (queue.length > 2000) queue = queue.slice(0, 2000);
     runSpeed = 1500;
 }, null, null, bboxString, maxDiffRetries);
@@ -245,7 +205,11 @@ function doDrawMapElement() {
                         doDrawMapElement();
                     });
                 } else {
-                    console.log("Skipping map element " + mapElement.id + " because changeset " + mapElement.changeset + " didn't match " + changeset_comment_match);
+                    console.log(
+                        "Skipping map element " + mapElement.id
+                        + " because changeset " + mapElement.changeset
+                        + " didn't match " + changeset_comment_match
+                    );
                     doDrawMapElement();
                 }
             });
@@ -262,7 +226,9 @@ function doDrawMapElement() {
 function pruneMapElements() {
     const mb = map.getBounds();
     mapElementGroup.eachLayer((l) => {
-        if (!mb.intersects(l.getBounds())) {
+        const bounds = 'getBounds' in l ? l.getBounds() : l.getLatLng().toBounds(10);
+
+        if (!mb.intersects(bounds)) {
             mapElementGroup.removeLayer(l);
         } else {
             l.setStyle({ opacity: 0.5 });
@@ -309,28 +275,32 @@ function drawMapElement(change, cb) {
     if (farFromLast(bounds.getCenter())) showLocation(bounds.getCenter());
     showComment(change.neu.changeset);
 
-    change.timetext = formatDistance(new Date(change.neu.timestamp), new Date(), {
+    change.timetext = formatDistanceStrict(new Date(change.neu.timestamp), new Date(), {
         addSuffix: true
     })
 
     map.fitBounds(bounds);
     overview_map.panTo(bounds.getCenter());
-    changeset_info.innerHTML = mustache.render(changeset_tmpl, setTagText(change));
+    changeset_info.innerHTML = render(changeset_tmpl, setTagText(change));
 
     const color = { 'create': '#B7FF00', 'modify': '#FF00EA', 'delete': '#FF0000' }[change.type];
     switch (mapElement.type) {
-        case 'way':
+        case 'way': {
             let newLine;
             if (mapElement.tags.building || mapElement.tags.area) {
                 newLine = L.polygon([], {
                     opacity: 1,
                     color: color,
-                    fill: color
+                    fill: color,
+                    weight: 5,
+                    interactive: false
                 }).addTo(mapElementGroup);
             } else {
                 newLine = L.polyline([], {
                     opacity: 1,
-                    color: color
+                    color: color,
+                    weight: 5,
+                    interactive: false
                 }).addTo(mapElementGroup);
             }
             // This is a bit lower than 3000 because we want the whole way
@@ -351,7 +321,8 @@ function drawMapElement(change, cb) {
             newLine.addLatLng(mapElement.linestring.pop());
             drawPt(mapElement.linestring.pop());
             break;
-        case 'node':
+        }
+        case 'node': {
             // Calculate marker radii such that final radius is ~10px
             const radii = [];
             for (let i = 0; i <= 25; i += 1) {
@@ -359,7 +330,9 @@ function drawMapElement(change, cb) {
             }
             const newMarker = L.circleMarker([mapElement.lat, mapElement.lon], {
                 opacity: 1,
-                color: color
+                color: color,
+                weight: 5,
+                interactive: false
             }).addTo(mapElementGroup);
 
             const perRadius = runSpeed / radii.length;
@@ -375,6 +348,7 @@ function drawMapElement(change, cb) {
 
             nodeMarkerAnimation();
             break;
+        }
     }
 }
 

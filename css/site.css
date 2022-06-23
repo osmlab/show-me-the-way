@@ -15,7 +15,7 @@
 }
 
 .overlay {
-    z-index: 2;
+    z-index: 500;
     position: absolute;
     background: #000;
     color:#aaa;
@@ -52,7 +52,7 @@
     top:5px;
     left:5px;
     color:#fff;
-    z-index:99;
+    z-index:501;
     font-size:20px;
     text-shadow:
         0 0 2px #000,
@@ -62,6 +62,7 @@
 }
 
 #overview_map::after {
+    z-index: 505;
     content: "";
     display: block;
     height: 40px;
