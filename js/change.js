@@ -79,7 +79,7 @@ class Change {
     }
 
     isRelevant() {
-        return new Promise((resolve, reject) => {
+        return new Promise((resolve) => {
             let relevant = false;
             const mapElement = this.neu || this.old;
 
@@ -160,7 +160,6 @@ class Change {
             this.fetchChangesetData(this.meta.changeset),
             this.fetchDisplayName(bounds.getCenter()),
         ]).then(([changesetData, displayName]) => {
-            console.log('the enhance then');
             this.meta.comment = changesetData.comment;
             this.meta.created_by = changesetData.created_by;
             this.meta.display_name = displayName;

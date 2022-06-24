@@ -3,7 +3,6 @@ import { config } from './config';
 class Maps {
     constructor(context, bbox) {
         this.context = context;
-        this.lastLocation = L.latLng(0, 0);
         const filteredBbox = context.bounds != config.bounds;
 
         this.main = L.map('map', {
