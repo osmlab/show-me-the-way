@@ -6,24 +6,26 @@ See OSM edits happen in real time.
 This code is deployed and running here:
 https://osmlab.github.io/show-me-the-way/
 
-### Filtering
+### Parameters
 
-#### By Bounding Box
+#### Filter by bounding box - bounds=
 
-You can restrict it to viewing only edits within a specified bounding-box like so:
+- Restrict viewing only edits within a specified bounding-box.
+    - https://osmlab.github.io/show-me-the-way/#bounds=32.55,-15.82,71.65,44.65
 
-https://osmlab.github.io/show-me-the-way/#bounds=32.55,-15.82,71.65,44.65
+Build a bounding box URL using this page: https://osmlab.github.io/show-me-the-way/bbox.html
 
-Build a bounding box URL like that, using this page:
+#### Filter by changeset comment, comment=
 
-https://osmlab.github.io/show-me-the-way/bbox.html
+- Restrict viewing only edits where the changeset comment matches a string.
+    - https://osmlab.github.io/show-me-the-way/#comment=missingmaps
+    - `comment=missingmaps`, will only show changes where the changeset comment contained missingmaps somewhere
 
-#### By Changeset Comment
+#### Change the playback speed, runTime=
 
-You can restrict it to viewing only edits where the changeset comment matches a string:
+- Specify how many seconds it takes for each change to fully render.
+    - https://osmlab.github.io/show-me-the-way/#runTime=5
+    - The default runTime is 2.
 
-https://osmlab.github.io/show-me-the-way/#comment=missingmaps
-
-You can combine the filters using querystring notation:
-
+You can combine the parameters using querystring notation:
 https://osmlab.github.io/show-me-the-way/#comment=missingmaps&bounds=32.55,-15.82,71.65,44.65
