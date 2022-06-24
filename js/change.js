@@ -52,9 +52,9 @@ class Change {
             });
 
             if (closeByKey) {
-                const cached_data = this.context.geocodeCache.get(closeByKey);
-                if (cached_data) {
-                    return resolve(cached_data);
+                const cachedGeocode = this.context.geocodeCache.get(closeByKey);
+                if (cachedGeocode) {
+                    return resolve(cachedGeocode);
                 }
             }
 
@@ -68,8 +68,9 @@ class Change {
                 .then(response => response.json())
                 .then(data => {
                     const id = `${lat},${lon}`;
-                    this.context.geocodeCache.set(id, data);
-                    resolve(data);
+                    const displayName = data.display_name;
+                    this.context.geocodeCache.set(id, displayName);
+                    resolve(displayName);
                 })
                 .catch(err => {
                     console.error('Error fetching location', err);
@@ -149,8 +150,8 @@ class Change {
             : makeBbox([mapElement.lat, mapElement.lon, mapElement.lat, mapElement.lon]);
 
         await this.fetchDisplayName(this.meta.bounds.getCenter())
-            .then(data => {
-                this.meta.display_name = data.display_name;
+            .then(displayName => {
+                this.meta.display_name = displayName;
             });
 
         // eventually Promise.all this; parallel not serial
@@ -160,12 +161,6 @@ class Change {
         });
 
         this.tagText = this.createTagText();
-
-        // if distance is significantly different from the last distance
-        // can we use the LRU in someway here?
-            // or rbush knn?
-            // put the cache in utils?
-
 
         return this;
     }
