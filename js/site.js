@@ -46,6 +46,7 @@ function init(windowLocationObj) {
         ? makeBboxString(makeBbox(context.bounds)) : null;
 
     // start the data loop
+    const maxDiffRetries = 2;
     osmStream.runFn((err, data) => {
         queue = data
             .filter(happenedToday)
@@ -58,7 +59,7 @@ function init(windowLocationObj) {
                 return (+new Date((a.neu && a.neu.timestamp)))
                     - (+new Date((b.neu && b.neu.timestamp)));
             });
-    }, null, null, requestingBbox, context.maxDiffRetries);
+    }, null, null, requestingBbox, maxDiffRetries);
 
     // create the maps
     const maps = new Maps(context, bbox);
@@ -79,7 +80,7 @@ function init(windowLocationObj) {
                 }
             });
         } else {
-            setTimeout(controller, context.runSpeed);
+            setTimeout(controller, context.runTime);
         }
     }
 
@@ -93,8 +94,7 @@ function setContext(obj) {
 
     const context = Object.assign({}, config, obj);
     context.bounds = context.bounds.split(',');
-    context.runSpeed = 1000 * context.runSpeed;
-    context.defaultCenter = context.defaultCenter.split(',');
+    context.runTime = 1000 * context.runTime;
 
     context.changesetCache = LRU(50);
     context.geocodeCache = LRU(200);

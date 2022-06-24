@@ -4,6 +4,7 @@ class Maps {
     constructor(context, bbox) {
         this.context = context;
         const filteredBbox = context.bounds != config.bounds;
+        const defaultCenter = '51.505,-0.09'.split(',');
 
         this.main = L.map('map', {
             zoomControl: false,
@@ -21,7 +22,7 @@ class Maps {
             }).addTo(this.main);
             this.main.fitBounds(bbox);
         } else {
-            this.main.setView(context.defaultCenter, 13);
+            this.main.setView(defaultCenter, 13);
         }
 
         this.overview_map = L.map('overview_map', {
@@ -43,7 +44,7 @@ class Maps {
             }).addTo(this.overview_map);
             this.overview_map.fitBounds(bbox);
         } else {
-            this.overview_map.setView(context.defaultCenter, 4);
+            this.overview_map.setView(defaultCenter, 4);
         }
 
         const mapboxKey = 'pk.eyJ1Ijoib3BlbnN0cmVldG1hcHVzIiwiYSI6ImNqdTM1ZWxqe'
@@ -98,8 +99,8 @@ class Maps {
             delete: '#FF0000'
         }[change.type];
 
-        const drawTime = this.context.runSpeed * 0.7;
-        const waitTime = this.context.runSpeed - drawTime;
+        const drawTime = this.context.runTime * 0.7;
+        const waitTime = this.context.runTime - drawTime;
 
         const mapElement = change.type === 'delete' ? change.old : change.neu;
 
