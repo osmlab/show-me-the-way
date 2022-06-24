@@ -15,12 +15,14 @@ class Change {
                 return resolve(cached_data);
             }
 
-            const urlTemplate = '//www.openstreetmap.org/api/0.6/changeset/{id}';
-            fetch(urlTemplate.replace('{id}', id), {
+            fetch(`//www.openstreetmap.org/api/0.6/changeset/${id}`, {
                 mode: 'cors'
             })
             .then(response => response.text())
-            .then(responseString => new window.DOMParser().parseFromString(responseString, 'text/xml'))
+            .then(responseString => {
+                return new window.DOMParser()
+                    .parseFromString(responseString, 'text/xml')
+            })
             .then(data => {
                 const changeset_data = {};
                 const tags = data.getElementsByTagName('tag');
@@ -59,9 +61,11 @@ class Change {
 
             const lat = boundsCenter.lat;
             const lon = boundsCenter.lng;
-            const nominatim_tmpl = '//nominatim.openstreetmap.org/reverse?format=json' +
-                '&lat={lat}&lon={lon}&zoom=5';
-            fetch(nominatim_tmpl.replace('{lat}', lat).replace('{lon}', lon), {
+
+            const nominatim_tmpl = `//nominatim.openstreetmap.org/reverse`
+                + `?format=json&lat=${lat}&lon=${lon}&zoom=5`;
+
+            fetch(nominatim_tmpl, {
                 mode: 'cors'
             })
                 .then(response => response.json())
