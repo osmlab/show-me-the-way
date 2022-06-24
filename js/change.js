@@ -5,7 +5,6 @@ import { formatDistanceStrict } from 'date-fns';
 class Change {
     constructor(context, changeObj) {
         this.context = context;
-        this.isRelevant = this._isRelevant(changeObj);
         Object.assign(this, changeObj);
     }
 
@@ -79,17 +78,22 @@ class Change {
         });
     }
 
-    async _isRelevant(change) {
-        let relevant = false;
-        const mapElement = change.neu || change.old;
+    isRelevant() {
+        return new Promise((resolve, reject) => {
+            let relevant = false;
+            const mapElement = this.neu || this.old;
 
-        if (this.context.comment && this.context.comment != "" && mapElement.changeset) {
-            await this.fetchChangesetData(mapElement.changeset)
+            if (this.context.comment == "") {
+                return resolve(true);
+            }
+
+            this.fetchChangesetData(mapElement.changeset)
                 .then(changeset_data => {
                     relevant = (
                         changeset_data.comment &&
-                        changeset_data.comment.indexOf(this.context.comment) > -1
-                    );
+                        changeset_data.comment.toLowerCase()
+                            .indexOf(this.context.comment.toLowerCase()) > -1
+                    )
 
                     if (!relevant) {
                         console.log(
@@ -98,12 +102,10 @@ class Change {
                             + " didn't match " + this.context.comment
                         );
                     }
-                });
-        } else {
-            relevant = true;
-        }
 
-        return relevant;
+                    return resolve(relevant);
+                });
+        });
     }
 
     createTagText() {
@@ -121,8 +123,14 @@ class Change {
         return 'a ' + mapElement.type;
     }
 
-    async enhance() {
+    enhance() {
         const mapElement = this.type === 'delete' ? this.old : this.neu;
+        const bounds = mapElement.type === 'way'
+                ? makeBbox(mapElement.bounds)
+                : makeBbox([
+                    mapElement.lat, mapElement.lon,
+                    mapElement.lat, mapElement.lon
+                ]);
 
         const past_tense = {
             create: 'created',
@@ -132,6 +140,7 @@ class Change {
 
         this.meta = {
             action: past_tense[this.type],
+            bounds: bounds,
             id: mapElement.id,
             type: mapElement.type,
             // always pull in the neu user, timestamp, and changeset info
@@ -139,30 +148,24 @@ class Change {
             changeset: this.neu.changeset
         };
 
-        await this.fetchChangesetData(this.meta.changeset)
-            .then(changeset_data => {
-                this.meta.comment = changeset_data.comment;
-                this.meta.created_by = changeset_data.created_by;
-            });
-
-        this.meta.bounds = mapElement.type === 'way'
-            ? makeBbox(mapElement.bounds)
-            : makeBbox([mapElement.lat, mapElement.lon, mapElement.lat, mapElement.lon]);
-
-        await this.fetchDisplayName(this.meta.bounds.getCenter())
-            .then(displayName => {
-                this.meta.display_name = displayName;
-            });
-
-        // eventually Promise.all this; parallel not serial
-
-        this.meta.timetext = formatDistanceStrict(new Date(this.neu.timestamp), new Date(), {
-            addSuffix: true
-        });
+        this.meta.timetext = formatDistanceStrict(
+            new Date(this.neu.timestamp),
+            new Date(),
+            { addSuffix: true }
+        );
 
         this.tagText = this.createTagText();
 
-        return this;
+        return Promise.all([
+            this.fetchChangesetData(this.meta.changeset),
+            this.fetchDisplayName(bounds.getCenter()),
+        ]).then(([changesetData, displayName]) => {
+            console.log('the enhance then');
+            this.meta.comment = changesetData.comment;
+            this.meta.created_by = changesetData.created_by;
+            this.meta.display_name = displayName;
+            return this;
+        });
     }
 }
 

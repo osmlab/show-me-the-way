@@ -68,15 +68,16 @@ function init(windowLocationObj) {
             const change = new Change(context, queue.pop());
             ui.updateQueueSize(queue.length);
 
-            if (change.isRelevant) {
-                change.enhance()
-                    .then(change => {
+            change.isRelevant().then((isRelevant) => {
+                if (isRelevant) {
+                    change.enhance().then(() => {
                         ui.update(change);
                         maps.drawMapElement(change, controller);
                     });
-            } else {
-                controller();
-            }
+                } else {
+                    controller();
+                }
+            });
         } else {
             setTimeout(controller, context.runSpeed);
         }
@@ -84,9 +85,6 @@ function init(windowLocationObj) {
 
     // start the loop
     controller();
-
-    // todo
-    // test all query params, especially filtered bboxes
 }
 
 function setContext(obj) {
