@@ -44,20 +44,31 @@ class Change {
     }
 
     fetchDisplayName(boundsCenter) {
-        // todo, rethink farFromLast logic
-        // if (this.farFromLast(change.meta.bounds.getCenter())) {
-        //     showLocation(change.meta.bounds.getCenter());
-        // }
-
         return new Promise((resolve, reject) => {
+            const CLOSE_THRESHOLD_METERS = 10000;
+            const closeByKey = this.context.geocodeCache.keys().find(key => {
+                const [ lat, lon ] = key.split(',').map(parseFloat);
+                return boundsCenter.distanceTo(L.latLng(lat, lon)) < CLOSE_THRESHOLD_METERS;
+            });
+
+            if (closeByKey) {
+                const cached_data = this.context.geocodeCache.get(closeByKey);
+                if (cached_data) {
+                    return resolve(cached_data);
+                }
+            }
+
+            const lat = boundsCenter.lat;
+            const lon = boundsCenter.lng;
             const nominatim_tmpl = '//nominatim.openstreetmap.org/reverse?format=json' +
                 '&lat={lat}&lon={lon}&zoom=5';
-            fetch(nominatim_tmpl.replace('{lat}', boundsCenter.lat).replace('{lon}', boundsCenter.lng), {
+            fetch(nominatim_tmpl.replace('{lat}', lat).replace('{lon}', lon), {
                 mode: 'cors'
             })
                 .then(response => response.json())
                 .then(data => {
-                    console.log('resolved fetchDisplayName');
+                    const id = `${lat},${lon}`;
+                    this.context.geocodeCache.set(id, data);
                     resolve(data);
                 })
                 .catch(err => {

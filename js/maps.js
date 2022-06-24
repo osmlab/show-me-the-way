@@ -73,11 +73,6 @@ class Maps {
         this.feature_group = L.featureGroup().addTo(this.main);
     }
 
-    farFromLast(LatLng) {
-        this.lastLocation = LatLng;
-        return this.lastLocation.distanceTo(LatLng) > 5000;
-    }
-
     pruneMapElements() {
         const visible_bounds = this.main.getBounds();
 

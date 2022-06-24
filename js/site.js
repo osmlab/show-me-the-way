@@ -99,6 +99,7 @@ function setContext(obj) {
     context.defaultCenter = context.defaultCenter.split(',');
 
     context.changesetCache = LRU(50);
+    context.geocodeCache = LRU(200);
 
     return context;
 }
