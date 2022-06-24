@@ -4,6 +4,170 @@
 Object.defineProperty(exports, "__esModule", {
   value: true
 });
+exports.Change = void 0;
+
+var _utils = require("./utils");
+
+var _dateFns = require("date-fns");
+
+class Change {
+  constructor(context, changeObj) {
+    this.context = context;
+    Object.assign(this, changeObj);
+  }
+
+  fetchChangesetData(id) {
+    return new Promise((resolve, reject) => {
+      const cached_data = this.context.changesetCache.get(id);
+
+      if (cached_data) {
+        return resolve(cached_data);
+      }
+
+      const urlTemplate = '//www.openstreetmap.org/api/0.6/changeset/{id}';
+      fetch(urlTemplate.replace('{id}', id), {
+        mode: 'cors'
+      }).then(response => response.text()).then(responseString => new window.DOMParser().parseFromString(responseString, 'text/xml')).then(data => {
+        const changeset_data = {};
+        const tags = data.getElementsByTagName('tag');
+
+        for (let i = 0; i < tags.length; i++) {
+          const key = tags[i].getAttribute('k');
+          const value = tags[i].getAttribute('v');
+          changeset_data[key] = value;
+        }
+
+        this.context.changesetCache.set(id, changeset_data);
+        resolve(changeset_data);
+      }).catch(err => {
+        console.log('Error fetching changeset data', err);
+        reject(err);
+      });
+    });
+  }
+
+  fetchDisplayName(boundsCenter) {
+    return new Promise((resolve, reject) => {
+      const CLOSE_THRESHOLD_METERS = 10000;
+      const closeByKey = this.context.geocodeCache.keys().find(key => {
+        const [lat, lon] = key.split(',').map(parseFloat);
+        return boundsCenter.distanceTo(L.latLng(lat, lon)) < CLOSE_THRESHOLD_METERS;
+      });
+
+      if (closeByKey) {
+        const cachedGeocode = this.context.geocodeCache.get(closeByKey);
+
+        if (cachedGeocode) {
+          return resolve(cachedGeocode);
+        }
+      }
+
+      const lat = boundsCenter.lat;
+      const lon = boundsCenter.lng;
+      const nominatim_tmpl = '//nominatim.openstreetmap.org/reverse?format=json' + '&lat={lat}&lon={lon}&zoom=5';
+      fetch(nominatim_tmpl.replace('{lat}', lat).replace('{lon}', lon), {
+        mode: 'cors'
+      }).then(response => response.json()).then(data => {
+        const id = `${lat},${lon}`;
+        const displayName = data.display_name;
+        this.context.geocodeCache.set(id, displayName);
+        resolve(displayName);
+      }).catch(err => {
+        console.error('Error fetching location', err);
+        reject(err);
+      });
+    });
+  }
+
+  isRelevant() {
+    return new Promise(resolve => {
+      let relevant = false;
+      const mapElement = this.neu || this.old;
+
+      if (this.context.comment == "") {
+        return resolve(true);
+      }
+
+      this.fetchChangesetData(mapElement.changeset).then(changeset_data => {
+        relevant = changeset_data.comment && changeset_data.comment.toLowerCase().indexOf(this.context.comment.toLowerCase()) > -1;
+
+        if (!relevant) {
+          console.log("Skipping map element " + mapElement.id + " because changeset " + mapElement.changeset + " didn't match " + this.context.comment);
+        }
+
+        return resolve(relevant);
+      });
+    });
+  }
+
+  createTagText() {
+    const showTags = ['building', 'natural', 'leisure', 'waterway', 'barrier', 'landuse', 'highway', 'power', 'amenity', 'place', 'addr:housenumber', 'memorial', 'historic', 'shop', 'office', 'emergency'];
+    const mapElement = this.type === 'delete' ? this.old : this.neu;
+    const tags = mapElement.tags;
+
+    for (let i = 0; i < showTags.length; i++) {
+      if (tags[showTags[i]]) {
+        return showTags[i] + '=' + tags[showTags[i]];
+      }
+    }
+
+    return 'a ' + mapElement.type;
+  }
+
+  enhance() {
+    const mapElement = this.type === 'delete' ? this.old : this.neu;
+    const bounds = mapElement.type === 'way' ? (0, _utils.makeBbox)(mapElement.bounds) : (0, _utils.makeBbox)([mapElement.lat, mapElement.lon, mapElement.lat, mapElement.lon]);
+    const past_tense = {
+      create: 'created',
+      modify: 'modified',
+      delete: 'deleted'
+    };
+    this.meta = {
+      action: past_tense[this.type],
+      bounds: bounds,
+      id: mapElement.id,
+      type: mapElement.type,
+      // always pull in the neu user, timestamp, and changeset info
+      user: this.neu.user,
+      changeset: this.neu.changeset
+    };
+    this.meta.timetext = (0, _dateFns.formatDistanceStrict)(new Date(this.neu.timestamp), new Date(), {
+      addSuffix: true
+    });
+    this.tagText = this.createTagText();
+    return Promise.all([this.fetchChangesetData(this.meta.changeset), this.fetchDisplayName(bounds.getCenter())]).then(([changesetData, displayName]) => {
+      this.meta.comment = changesetData.comment;
+      this.meta.created_by = changesetData.created_by;
+      this.meta.display_name = displayName;
+      return this;
+    });
+  }
+
+}
+
+exports.Change = Change;
+
+},{"./utils":7,"date-fns":140}],2:[function(require,module,exports){
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.config = void 0;
+// config properties and query params intentionally clash
+const config = {
+  'bounds': '-90,-180,90,180',
+  'comment': '',
+  'runTime': 2
+};
+exports.config = config;
+
+},{}],3:[function(require,module,exports){
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
 exports.acceptableType = acceptableType;
 exports.happenedToday = happenedToday;
 exports.hasTags = hasTags;
@@ -56,350 +220,311 @@ function hasTags(change) {
   return change.neu && Object.keys(change.neu.tags || {}).length > 0 || change.old && Object.keys(change.old.tags || {}).length > 0;
 }
 
-},{"./utils":3}],2:[function(require,module,exports){
+},{"./utils":7}],4:[function(require,module,exports){
 "use strict";
 
-var _osmStream = _interopRequireDefault(require("osm-stream"));
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.Maps = void 0;
 
-var _dateFns = require("date-fns");
+var _config = require("./config");
 
-var _mustache = require("mustache");
+class Maps {
+  constructor(context, bbox) {
+    this.context = context;
+    const filteredBbox = context.bounds != _config.config.bounds;
+    const defaultCenter = '51.505,-0.09'.split(',');
+    this.main = L.map('map', {
+      zoomControl: false,
+      dragging: false,
+      scrollWheelZoom: false,
+      doubleClickZoom: false,
+      boxZoom: false
+    });
 
-var _lruCache = _interopRequireDefault(require("lru-cache"));
+    if (filteredBbox) {
+      L.rectangle(bbox, {
+        color: '#ffffff',
+        weight: 5,
+        fill: false
+      }).addTo(this.main);
+      this.main.fitBounds(bbox);
+    } else {
+      this.main.setView(defaultCenter, 13);
+    }
+
+    this.overview_map = L.map('overview_map', {
+      zoomControl: false,
+      dragging: false,
+      touchZoom: false,
+      scrollWheelZoom: false,
+      doubleClickZoom: false,
+      boxZoom: false,
+      minZoom: 4,
+      maxZoom: 8
+    });
+
+    if (filteredBbox) {
+      L.rectangle(bbox, {
+        color: '#ffffff',
+        weight: 1,
+        fill: false
+      }).addTo(this.overview_map);
+      this.overview_map.fitBounds(bbox);
+    } else {
+      this.overview_map.setView(defaultCenter, 4);
+    }
+
+    const mapboxKey = 'pk.eyJ1Ijoib3BlbnN0cmVldG1hcHVzIiwiYSI6ImNqdTM1ZWxqe' + 'TBqa2MzeXBhODIxdnE2eG8ifQ.zyhAo181muDzPRdyYsqLGw';
+    new L.TileLayer('https://api.mapbox.com/styles/v1/openstreetmapus/{style_id}/tiles/256/{z}/{x}/{y}?access_token={key}', {
+      style_id: 'cju35gljt1bpm1fp2z93dlyca',
+      key: mapboxKey,
+      attribution: '<a href="https://mapbox.com/about/maps/">Terms &amp; Conditions</a>'
+    }).addTo(this.main);
+    new L.TileLayer('https://api.mapbox.com/styles/v1/openstreetmapus/{style_id}/tiles/256/{z}/{x}/{y}?access_token={key}', {
+      minZoom: 4,
+      maxZoom: 8,
+      style_id: 'cj8xtgojqhd3z2sorzpi01csj',
+      key: mapboxKey,
+      attribution: '<a href="https://mapbox.com/about/maps/">Terms &amp; Conditions</a>'
+    }).addTo(this.overview_map); // Remove Leaflet shoutouts
+
+    this.main.attributionControl.setPrefix('');
+    this.overview_map.attributionControl.setPrefix(false);
+    this.feature_group = L.featureGroup().addTo(this.main);
+  }
+
+  pruneMapElements() {
+    const visible_bounds = this.main.getBounds();
+    this.feature_group.eachLayer(l => {
+      const feature_bounds = 'getBounds' in l ? l.getBounds() : l.getLatLng().toBounds(10);
+
+      if (visible_bounds.intersects(feature_bounds)) {
+        l.setStyle({
+          opacity: 0.5
+        });
+      } else {
+        this.feature_group.removeLayer(l);
+      }
+    });
+  }
+
+  drawMapElement(change, cb) {
+    this.pruneMapElements();
+    this.main.fitBounds(change.meta.bounds);
+    this.overview_map.panTo(change.meta.bounds.getCenter());
+    const color = {
+      create: '#B7FF00',
+      modify: '#FF00EA',
+      delete: '#FF0000'
+    }[change.type];
+    const drawTime = this.context.runTime * 0.7;
+    const waitTime = this.context.runTime - drawTime;
+    const mapElement = change.type === 'delete' ? change.old : change.neu;
+
+    switch (mapElement.type) {
+      case 'way':
+        {
+          let newLine;
+
+          if (mapElement.tags.building || mapElement.tags.area) {
+            newLine = L.polygon([], {
+              opacity: 1,
+              color: color,
+              fill: color,
+              weight: 5,
+              interactive: false
+            }).addTo(this.feature_group);
+          } else {
+            newLine = L.polyline([], {
+              opacity: 1,
+              color: color,
+              weight: 5,
+              interactive: false
+            }).addTo(this.feature_group);
+          }
+
+          const perPt = drawTime / mapElement.linestring.length;
+
+          function drawPt(pt) {
+            newLine.addLatLng(pt);
+
+            if (mapElement.linestring.length) {
+              window.setTimeout(() => {
+                drawPt(mapElement.linestring.pop());
+              }, perPt);
+            } else {
+              window.setTimeout(cb, waitTime);
+            }
+          }
+
+          newLine.addLatLng(mapElement.linestring.pop());
+          drawPt(mapElement.linestring.pop());
+          break;
+        }
+
+      case 'node':
+        {
+          // Calculate marker radii such that final radius is ~10px
+          const radii = [];
+
+          for (let i = 0; i <= 25; i += 1) {
+            radii.push(17 * Math.sin(i / 10));
+          }
+
+          const newMarker = L.circleMarker([mapElement.lat, mapElement.lon], {
+            opacity: 1,
+            color: color,
+            weight: 5,
+            interactive: false
+          }).addTo(this.feature_group);
+          const perRadius = drawTime / radii.length;
+
+          function nodeMarkerAnimation() {
+            newMarker.setRadius(radii.shift());
+
+            if (radii.length) {
+              window.setTimeout(nodeMarkerAnimation, perRadius);
+            } else {
+              window.setTimeout(cb, waitTime);
+            }
+          }
+
+          nodeMarkerAnimation();
+          break;
+        }
+    }
+  }
+
+}
+
+exports.Maps = Maps;
+
+},{"./config":2}],5:[function(require,module,exports){
+"use strict";
+
+var _change = require("./change");
+
+var _maps = require("./maps");
+
+var _ui = require("./ui");
+
+var _config = require("./config");
 
 var _utils = require("./utils");
 
 var _filters = require("./filters");
 
+var _osmStream = _interopRequireDefault(require("osm-stream"));
+
+var _lruCache = _interopRequireDefault(require("lru-cache"));
+
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
-let bboxArray = ["-90.0", "-180.0", "90.0", "180.0"];
-const mapCenter = [51.505, -0.09];
-const maxDiffRetries = 1;
-let filteredBbox = false;
-let changeset_comment_match = null;
+function init(windowLocationObj) {
+  const ui = new _ui.Ui(); // get user params from the url
 
-if (location.hash) {
-  const parsed_hash = Object.fromEntries(new URLSearchParams(location.hash.replace('#', '')));
+  const params = Object.fromEntries(new URLSearchParams(windowLocationObj.hash.replace('#', ''))); // override default config with user params where applicable
 
-  if (parsed_hash.length === 1 && parsed_hash[Object.keys(parsed_hash)[0]] === null) {
-    // To be backwards compatible with pages that assumed the only
-    // item in the hash would be the bbox
-    bboxArray = Object.keys(parsed_hash)[0].split(',');
-  } else {
-    if (parsed_hash.bounds) {
-      bboxArray = parsed_hash.bounds.split(',');
-      filteredBbox = true;
-    }
+  const context = setContext(params); // initialize shared state
 
-    if (parsed_hash.comment) {
-      changeset_comment_match = parsed_hash.comment;
-      document.title += ' #' + changeset_comment_match;
-    }
-  }
-}
+  let queue = [];
+  const bbox = (0, _utils.makeBbox)(context.bounds); // see commit 1e4e19b265247a95a20ab11daec78fcfba1920ff for the logic here
+  // in short, if an area is too large (2 degrees) the server response will be slow or error
+  // in that case, make a request with no bounds and filter the content client-side
 
-const bbox = (0, _utils.makeBbox)(bboxArray);
-let bboxString = null;
+  const requestingBbox = context.bounds != _config.config.bounds && (0, _utils.isBboxSizeAcceptable)(bbox) ? (0, _utils.makeBboxString)((0, _utils.makeBbox)(context.bounds)) : null; // start the data loop
 
-if (filteredBbox && (0, _utils.isBboxSizeAcceptable)(bbox)) {
-  bboxString = bbox.toBBoxString();
-}
+  const maxDiffRetries = 2;
 
-const mapboxKey = 'pk.eyJ1Ijoib3BlbnN0cmVldG1hcHVzIiwiYSI6ImNqdTM1ZWxqeTBqa2MzeXBhODIxdnE2eG8ifQ.zyhAo181muDzPRdyYsqLGw';
-const map = L.map('map', {
-  zoomControl: false,
-  dragging: false,
-  scrollWheelZoom: false,
-  doubleClickZoom: false,
-  boxZoom: false
-});
-
-if (filteredBbox) {
-  map.fitBounds(bbox);
-} else {
-  map.setView(mapCenter, 13);
-}
-
-const overview_map = L.map('overview_map', {
-  zoomControl: false,
-  dragging: false,
-  touchZoom: false,
-  scrollWheelZoom: false,
-  doubleClickZoom: false,
-  boxZoom: false,
-  minZoom: 4,
-  maxZoom: 8
-});
-
-if (filteredBbox) {
-  overview_map.fitBounds(bbox);
-} else {
-  overview_map.setView(mapCenter, 4);
-}
-
-new L.TileLayer('https://api.mapbox.com/styles/v1/openstreetmapus/{style_id}/tiles/256/{z}/{x}/{y}?access_token={key}', {
-  style_id: 'cju35gljt1bpm1fp2z93dlyca',
-  key: mapboxKey,
-  attribution: '<a href="https://mapbox.com/about/maps/">Terms &amp; Conditions</a>'
-}).addTo(map);
-new L.TileLayer('https://api.mapbox.com/styles/v1/openstreetmapus/{style_id}/tiles/256/{z}/{x}/{y}?access_token={key}', {
-  minZoom: 4,
-  maxZoom: 8,
-  style_id: 'cj8xtgojqhd3z2sorzpi01csj',
-  key: mapboxKey,
-  attribution: '<a href="https://mapbox.com/about/maps/">Terms &amp; Conditions</a>'
-}).addTo(overview_map);
-const mapElementGroup = L.featureGroup().addTo(map);
-const changeset_info = document.getElementById('changeset_info');
-const changeset_tmpl = document.getElementById('changeset-template').innerHTML;
-let queue = [];
-const changeset_cache = (0, _lruCache.default)(50); // Remove Leaflet shoutouts
-
-map.attributionControl.setPrefix('');
-overview_map.attributionControl.setPrefix('');
-changeset_info.innerHTML = '<div class="loading">loading...</div>';
-let lastLocation = L.latLng(0, 0);
-
-function farFromLast(c) {
-  try {
-    return lastLocation.distanceTo(c) > 1000;
-  } finally {
-    lastLocation = c;
-  }
-}
-
-function showLocation(ll) {
-  const nominatim_tmpl = '//nominatim.openstreetmap.org/reverse?format=json' + '&lat={lat}&lon={lon}&zoom=5';
-  fetch(nominatim_tmpl.replace('{lat}', ll.lat).replace('{lon}', ll.lng), {
-    mode: 'cors'
-  }).then(response => response.json()).then(data => {
-    document.getElementById('reverse-location').textContent = data.display_name;
-  }).catch(err => {
-    console.error('Error fetching location', err);
-  });
-}
-
-function fetchChangesetData(id, callback) {
-  const cached_changeset_data = changeset_cache.get(id);
-
-  if (!cached_changeset_data) {
-    const changeset_url_tmpl = '//www.openstreetmap.org/api/0.6/changeset/{id}';
-    fetch(changeset_url_tmpl.replace('{id}', id), {
-      mode: 'cors'
-    }).then(response => response.text()).then(responseString => new window.DOMParser().parseFromString(responseString, "text/xml")).then(data => {
-      const changeset_data = {};
-      const tags = data.getElementsByTagName('tag');
-
-      for (let i = 0; i < tags.length; i++) {
-        const key = tags[i].getAttribute('k');
-        const value = tags[i].getAttribute('v');
-        changeset_data[key] = value;
-      }
-
-      changeset_cache.set(id, changeset_data);
-      callback(null, changeset_data);
-    }).catch(err => {
-      console.log('Error fetching changeset data', err);
+  _osmStream.default.runFn((err, data) => {
+    queue = data.filter(_filters.happenedToday).filter(_filters.userNotIgnored).filter(_filters.acceptableType).filter(_filters.hasTags).filter(_filters.wayLongEnough).filter(change => (0, _filters.withinBbox)(change, bbox)).sort((a, b) => {
+      return +new Date(a.neu && a.neu.timestamp) - +new Date(b.neu && b.neu.timestamp);
     });
-  } else {
-    callback(null, cached_changeset_data);
-  }
-}
+  }, null, null, requestingBbox, maxDiffRetries); // create the maps
 
-function showComment(id) {
-  fetchChangesetData(id, (err, changeset_data) => {
-    document.getElementById('comment').textContent = changeset_data.comment + ' in ' + changeset_data.created_by;
-  });
-}
 
-let runSpeed = 2000;
+  const maps = new _maps.Maps(context, bbox);
 
-_osmStream.default.runFn((err, data) => {
-  queue = data.filter(_filters.happenedToday).filter(_filters.userNotIgnored).filter(_filters.acceptableType).filter(_filters.hasTags).filter(_filters.wayLongEnough).filter(change => (0, _filters.withinBbox)(change, bbox)).sort((a, b) => {
-    return +new Date(a.neu && a.neu.timestamp) - +new Date(b.neu && b.neu.timestamp);
-  }); // if (queue.length > 2000) queue = queue.slice(0, 2000);
-
-  runSpeed = 1500;
-}, null, null, bboxString, maxDiffRetries);
-
-function doDrawMapElement() {
-  document.getElementById('queuesize').textContent = queue.length;
-
-  if (queue.length) {
-    const change = queue.pop();
-    const mapElement = change.neu || change.old; // Skip map elements that are part of a changeset we don't care about
-
-    if (changeset_comment_match && mapElement.changeset) {
-      fetchChangesetData(mapElement.changeset, (err, changeset_data) => {
-        if (err) {
-          console.log("Error filtering changeset: " + err);
-          doDrawMapElement();
-          return;
-        }
-
-        if (changeset_data.comment && changeset_data.comment.indexOf(changeset_comment_match) > -1) {
-          console.log("Drawing map element " + mapElement.id);
-          drawMapElement(change, () => {
-            doDrawMapElement();
+  function controller() {
+    if (queue.length) {
+      const change = new _change.Change(context, queue.pop());
+      ui.updateQueueSize(queue.length);
+      change.isRelevant().then(isRelevant => {
+        if (isRelevant) {
+          change.enhance().then(() => {
+            ui.update(change);
+            maps.drawMapElement(change, controller);
           });
         } else {
-          console.log("Skipping map element " + mapElement.id + " because changeset " + mapElement.changeset + " didn't match " + changeset_comment_match);
-          doDrawMapElement();
+          controller();
         }
       });
     } else {
-      drawMapElement(change, () => {
-        doDrawMapElement();
-      });
+      setTimeout(controller, context.runTime);
     }
-  } else {
-    window.setTimeout(doDrawMapElement, runSpeed);
+  } // start the loop
+
+
+  controller();
+}
+
+function setContext(obj) {
+  const comment = obj.comment || _config.config.comment;
+  if (comment.length) document.title += ' #' + comment;
+  const context = Object.assign({}, _config.config, obj);
+  context.bounds = context.bounds.split(',');
+  context.runTime = 1000 * context.runTime;
+  context.changesetCache = (0, _lruCache.default)(50);
+  context.geocodeCache = (0, _lruCache.default)(200);
+  return context;
+}
+
+init(window.location);
+
+},{"./change":1,"./config":2,"./filters":3,"./maps":4,"./ui":6,"./utils":7,"lru-cache":304,"osm-stream":306}],6:[function(require,module,exports){
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.Ui = void 0;
+
+var _mustache = require("mustache");
+
+class Ui {
+  constructor() {
+    this.changeset_info = document.getElementById('changeset_info');
+    this.changeset_info.innerHTML = '<div class="loading">loading...</div>';
+    this.changeset_tmpl = document.getElementById('changeset-template').innerHTML;
   }
-}
 
-function pruneMapElements() {
-  const mb = map.getBounds();
-  mapElementGroup.eachLayer(l => {
-    const bounds = 'getBounds' in l ? l.getBounds() : l.getLatLng().toBounds(10);
+  update(change) {
+    this._showComment(change);
 
-    if (!mb.intersects(bounds)) {
-      mapElementGroup.removeLayer(l);
-    } else {
-      l.setStyle({
-        opacity: 0.5
-      });
-    }
-  });
-}
+    this._showLocation(change);
 
-function setTagText(change) {
-  const showTags = ['building', 'natural', 'leisure', 'waterway', 'barrier', 'landuse', 'highway', 'power', 'amenity', 'place', 'addr:housenumber', 'memorial', 'historic', 'shop', 'office', 'emergency'];
-  const mapElement = change.type === 'delete' ? change.old : change.neu;
-  const tags = mapElement.tags;
-
-  for (let i = 0; i < showTags.length; i++) {
-    if (tags[showTags[i]]) {
-      change.tagtext = showTags[i] + '=' + tags[showTags[i]];
-      return change;
-    }
+    this.changeset_info.innerHTML = (0, _mustache.render)(this.changeset_tmpl, change);
   }
 
-  change.tagtext = 'a ' + mapElement.type;
-  return change;
-}
-
-function drawMapElement(change, cb) {
-  pruneMapElements();
-  const past_tense = {
-    modify: 'modified',
-    create: 'created',
-    'delete': 'deleted'
-  };
-  const mapElement = change.type === 'delete' ? change.old : change.neu;
-  change.meta = {
-    action: past_tense[change.type],
-    id: mapElement.id,
-    type: mapElement.type,
-    // Always pull in the new side user, timestamp, and changeset info
-    user: change.neu.user,
-    changeset: change.neu.changeset
-  }; // Zoom to the area in question
-
-  const bounds = mapElement.type === 'way' ? (0, _utils.makeBbox)(mapElement.bounds) : (0, _utils.makeBbox)([mapElement.lat, mapElement.lon, mapElement.lat, mapElement.lon]);
-  if (farFromLast(bounds.getCenter())) showLocation(bounds.getCenter());
-  showComment(change.neu.changeset);
-  change.timetext = (0, _dateFns.formatDistanceStrict)(new Date(change.neu.timestamp), new Date(), {
-    addSuffix: true
-  });
-  map.fitBounds(bounds);
-  overview_map.panTo(bounds.getCenter());
-  changeset_info.innerHTML = (0, _mustache.render)(changeset_tmpl, setTagText(change));
-  const color = {
-    'create': '#B7FF00',
-    'modify': '#FF00EA',
-    'delete': '#FF0000'
-  }[change.type];
-
-  switch (mapElement.type) {
-    case 'way':
-      {
-        let newLine;
-
-        if (mapElement.tags.building || mapElement.tags.area) {
-          newLine = L.polygon([], {
-            opacity: 1,
-            color: color,
-            fill: color,
-            weight: 5,
-            interactive: false
-          }).addTo(mapElementGroup);
-        } else {
-          newLine = L.polyline([], {
-            opacity: 1,
-            color: color,
-            weight: 5,
-            interactive: false
-          }).addTo(mapElementGroup);
-        } // This is a bit lower than 3000 because we want the whole way
-        // to stay on the screen for a bit before moving on.
-
-
-        const perPt = runSpeed / mapElement.linestring.length;
-
-        function drawPt(pt) {
-          newLine.addLatLng(pt);
-
-          if (mapElement.linestring.length) {
-            window.setTimeout(() => {
-              drawPt(mapElement.linestring.pop());
-            }, perPt);
-          } else {
-            window.setTimeout(cb, perPt * 2);
-          }
-        }
-
-        newLine.addLatLng(mapElement.linestring.pop());
-        drawPt(mapElement.linestring.pop());
-        break;
-      }
-
-    case 'node':
-      {
-        // Calculate marker radii such that final radius is ~10px
-        const radii = [];
-
-        for (let i = 0; i <= 25; i += 1) {
-          radii.push(17 * Math.sin(i / 10));
-        }
-
-        const newMarker = L.circleMarker([mapElement.lat, mapElement.lon], {
-          opacity: 1,
-          color: color,
-          weight: 5,
-          interactive: false
-        }).addTo(mapElementGroup);
-        const perRadius = runSpeed / radii.length;
-
-        function nodeMarkerAnimation() {
-          newMarker.setRadius(radii.shift());
-
-          if (radii.length) {
-            window.setTimeout(nodeMarkerAnimation, perRadius);
-          } else {
-            window.setTimeout(cb, perRadius * 2);
-          }
-        }
-
-        nodeMarkerAnimation();
-        break;
-      }
+  _showComment(change) {
+    document.getElementById('comment').textContent = change.meta.comment + ' in ' + change.meta.created_by;
   }
+
+  updateQueueSize(numChanges) {
+    document.getElementById('queuesize').textContent = numChanges;
+  }
+
+  _showLocation(change) {
+    document.getElementById('reverse-location').textContent = change.meta.display_name;
+  }
+
 }
 
-doDrawMapElement();
+exports.Ui = Ui;
 
-},{"./filters":1,"./utils":3,"date-fns":136,"lru-cache":300,"mustache":301,"osm-stream":302}],3:[function(require,module,exports){
+},{"mustache":305}],7:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -407,9 +532,14 @@ Object.defineProperty(exports, "__esModule", {
 });
 exports.isBboxSizeAcceptable = isBboxSizeAcceptable;
 exports.makeBbox = makeBbox;
+exports.makeBboxString = makeBboxString;
 
 function makeBbox(bounds_array) {
   return new L.LatLngBounds(new L.LatLng(bounds_array[0], bounds_array[1]), new L.LatLng(bounds_array[2], bounds_array[3]));
+}
+
+function makeBboxString(bbox) {
+  return bbox.toBBoxString();
 }
 
 function isBboxSizeAcceptable(bbox) {
@@ -422,7 +552,7 @@ function isBboxSizeAcceptable(bbox) {
   return width * height < 2;
 }
 
-},{}],4:[function(require,module,exports){
+},{}],8:[function(require,module,exports){
 (function (global){(function (){
 'use strict';
 
@@ -453,7 +583,7 @@ module.exports = function availableTypedArrays() {
 };
 
 }).call(this)}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],5:[function(require,module,exports){
+},{}],9:[function(require,module,exports){
 'use strict'
 
 exports.byteLength = byteLength
@@ -605,9 +735,9 @@ function fromByteArray (uint8) {
   return parts.join('')
 }
 
-},{}],6:[function(require,module,exports){
+},{}],10:[function(require,module,exports){
 
-},{}],7:[function(require,module,exports){
+},{}],11:[function(require,module,exports){
 (function (Buffer){(function (){
 /*!
  * The buffer module from node.js, for the browser.
@@ -2388,7 +2518,7 @@ function numberIsNaN (obj) {
 }
 
 }).call(this)}).call(this,require("buffer").Buffer)
-},{"base64-js":5,"buffer":7,"ieee754":293}],8:[function(require,module,exports){
+},{"base64-js":9,"buffer":11,"ieee754":297}],12:[function(require,module,exports){
 'use strict';
 
 var GetIntrinsic = require('get-intrinsic');
@@ -2405,7 +2535,7 @@ module.exports = function callBoundIntrinsic(name, allowMissing) {
 	return intrinsic;
 };
 
-},{"./":9,"get-intrinsic":288}],9:[function(require,module,exports){
+},{"./":13,"get-intrinsic":292}],13:[function(require,module,exports){
 'use strict';
 
 var bind = require('function-bind');
@@ -2454,7 +2584,7 @@ if ($defineProperty) {
 	module.exports.apply = applyBind;
 }
 
-},{"function-bind":287,"get-intrinsic":288}],10:[function(require,module,exports){
+},{"function-bind":291,"get-intrinsic":292}],14:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -2473,7 +2603,7 @@ function addLeadingZeros(number, targetLength) {
   return sign + output;
 }
 
-},{}],11:[function(require,module,exports){
+},{}],15:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -2497,7 +2627,7 @@ function assign(target, dirtyObject) {
   return target;
 }
 
-},{}],12:[function(require,module,exports){
+},{}],16:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -2513,7 +2643,7 @@ function cloneObject(dirtyObject) {
   return (0, _index.default)({}, dirtyObject);
 }
 
-},{"../assign/index.js":11}],13:[function(require,module,exports){
+},{"../assign/index.js":15}],17:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -3398,7 +3528,7 @@ function formatTimezone(offset, dirtyDelimiter) {
 var _default = formatters;
 exports.default = _default;
 
-},{"../../../_lib/getUTCDayOfYear/index.js":17,"../../../_lib/getUTCISOWeek/index.js":18,"../../../_lib/getUTCISOWeekYear/index.js":19,"../../../_lib/getUTCWeek/index.js":20,"../../../_lib/getUTCWeekYear/index.js":21,"../../addLeadingZeros/index.js":10,"../lightFormatters/index.js":14}],14:[function(require,module,exports){
+},{"../../../_lib/getUTCDayOfYear/index.js":21,"../../../_lib/getUTCISOWeek/index.js":22,"../../../_lib/getUTCISOWeekYear/index.js":23,"../../../_lib/getUTCWeek/index.js":24,"../../../_lib/getUTCWeekYear/index.js":25,"../../addLeadingZeros/index.js":14,"../lightFormatters/index.js":18}],18:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -3494,7 +3624,7 @@ var formatters = {
 var _default = formatters;
 exports.default = _default;
 
-},{"../../addLeadingZeros/index.js":10}],15:[function(require,module,exports){
+},{"../../addLeadingZeros/index.js":14}],19:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -3600,7 +3730,7 @@ var longFormatters = {
 var _default = longFormatters;
 exports.default = _default;
 
-},{}],16:[function(require,module,exports){
+},{}],20:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -3625,7 +3755,7 @@ function getTimezoneOffsetInMilliseconds(date) {
   return date.getTime() - utcDate.getTime();
 }
 
-},{}],17:[function(require,module,exports){
+},{}],21:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -3653,7 +3783,7 @@ function getUTCDayOfYear(dirtyDate) {
   return Math.floor(difference / MILLISECONDS_IN_DAY) + 1;
 }
 
-},{"../../toDate/index.js":279,"../requiredArgs/index.js":23}],18:[function(require,module,exports){
+},{"../../toDate/index.js":283,"../requiredArgs/index.js":27}],22:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -3684,7 +3814,7 @@ function getUTCISOWeek(dirtyDate) {
   return Math.round(diff / MILLISECONDS_IN_WEEK) + 1;
 }
 
-},{"../../toDate/index.js":279,"../requiredArgs/index.js":23,"../startOfUTCISOWeek/index.js":29,"../startOfUTCISOWeekYear/index.js":30}],19:[function(require,module,exports){
+},{"../../toDate/index.js":283,"../requiredArgs/index.js":27,"../startOfUTCISOWeek/index.js":33,"../startOfUTCISOWeekYear/index.js":34}],23:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -3724,7 +3854,7 @@ function getUTCISOWeekYear(dirtyDate) {
   }
 }
 
-},{"../../toDate/index.js":279,"../requiredArgs/index.js":23,"../startOfUTCISOWeek/index.js":29}],20:[function(require,module,exports){
+},{"../../toDate/index.js":283,"../requiredArgs/index.js":27,"../startOfUTCISOWeek/index.js":33}],24:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -3755,7 +3885,7 @@ function getUTCWeek(dirtyDate, options) {
   return Math.round(diff / MILLISECONDS_IN_WEEK) + 1;
 }
 
-},{"../../toDate/index.js":279,"../requiredArgs/index.js":23,"../startOfUTCWeek/index.js":31,"../startOfUTCWeekYear/index.js":32}],21:[function(require,module,exports){
+},{"../../toDate/index.js":283,"../requiredArgs/index.js":27,"../startOfUTCWeek/index.js":35,"../startOfUTCWeekYear/index.js":36}],25:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -3807,7 +3937,7 @@ function getUTCWeekYear(dirtyDate, dirtyOptions) {
   }
 }
 
-},{"../../toDate/index.js":279,"../requiredArgs/index.js":23,"../startOfUTCWeek/index.js":31,"../toInteger/index.js":33}],22:[function(require,module,exports){
+},{"../../toDate/index.js":283,"../requiredArgs/index.js":27,"../startOfUTCWeek/index.js":35,"../toInteger/index.js":37}],26:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -3839,7 +3969,7 @@ function throwProtectedError(token, format, input) {
   }
 }
 
-},{}],23:[function(require,module,exports){
+},{}],27:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -3853,7 +3983,7 @@ function requiredArgs(required, args) {
   }
 }
 
-},{}],24:[function(require,module,exports){
+},{}],28:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -3875,7 +4005,7 @@ function getRoundingMethod(method) {
   return method ? roundingMap[method] : roundingMap[defaultRoundingMethod];
 }
 
-},{}],25:[function(require,module,exports){
+},{}],29:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -3915,7 +4045,7 @@ function setUTCDay(dirtyDate, dirtyDay, dirtyOptions) {
   return date;
 }
 
-},{"../../toDate/index.js":279,"../requiredArgs/index.js":23,"../toInteger/index.js":33}],26:[function(require,module,exports){
+},{"../../toDate/index.js":283,"../requiredArgs/index.js":27,"../toInteger/index.js":37}],30:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -3951,7 +4081,7 @@ function setUTCISODay(dirtyDate, dirtyDay) {
   return date;
 }
 
-},{"../../toDate/index.js":279,"../requiredArgs/index.js":23,"../toInteger/index.js":33}],27:[function(require,module,exports){
+},{"../../toDate/index.js":283,"../requiredArgs/index.js":27,"../toInteger/index.js":37}],31:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -3980,7 +4110,7 @@ function setUTCISOWeek(dirtyDate, dirtyISOWeek) {
   return date;
 }
 
-},{"../../toDate/index.js":279,"../getUTCISOWeek/index.js":18,"../requiredArgs/index.js":23,"../toInteger/index.js":33}],28:[function(require,module,exports){
+},{"../../toDate/index.js":283,"../getUTCISOWeek/index.js":22,"../requiredArgs/index.js":27,"../toInteger/index.js":37}],32:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -4009,7 +4139,7 @@ function setUTCWeek(dirtyDate, dirtyWeek, options) {
   return date;
 }
 
-},{"../../toDate/index.js":279,"../getUTCWeek/index.js":20,"../requiredArgs/index.js":23,"../toInteger/index.js":33}],29:[function(require,module,exports){
+},{"../../toDate/index.js":283,"../getUTCWeek/index.js":24,"../requiredArgs/index.js":27,"../toInteger/index.js":37}],33:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -4036,7 +4166,7 @@ function startOfUTCISOWeek(dirtyDate) {
   return date;
 }
 
-},{"../../toDate/index.js":279,"../requiredArgs/index.js":23}],30:[function(require,module,exports){
+},{"../../toDate/index.js":283,"../requiredArgs/index.js":27}],34:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -4064,7 +4194,7 @@ function startOfUTCISOWeekYear(dirtyDate) {
   return date;
 }
 
-},{"../getUTCISOWeekYear/index.js":19,"../requiredArgs/index.js":23,"../startOfUTCISOWeek/index.js":29}],31:[function(require,module,exports){
+},{"../getUTCISOWeekYear/index.js":23,"../requiredArgs/index.js":27,"../startOfUTCISOWeek/index.js":33}],35:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -4102,7 +4232,7 @@ function startOfUTCWeek(dirtyDate, dirtyOptions) {
   return date;
 }
 
-},{"../../toDate/index.js":279,"../requiredArgs/index.js":23,"../toInteger/index.js":33}],32:[function(require,module,exports){
+},{"../../toDate/index.js":283,"../requiredArgs/index.js":27,"../toInteger/index.js":37}],36:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -4137,7 +4267,7 @@ function startOfUTCWeekYear(dirtyDate, dirtyOptions) {
   return date;
 }
 
-},{"../getUTCWeekYear/index.js":21,"../requiredArgs/index.js":23,"../startOfUTCWeek/index.js":31,"../toInteger/index.js":33}],33:[function(require,module,exports){
+},{"../getUTCWeekYear/index.js":25,"../requiredArgs/index.js":27,"../startOfUTCWeek/index.js":35,"../toInteger/index.js":37}],37:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -4159,7 +4289,7 @@ function toInteger(dirtyNumber) {
   return number < 0 ? Math.ceil(number) : Math.floor(number);
 }
 
-},{}],34:[function(require,module,exports){
+},{}],38:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -4241,7 +4371,7 @@ function add(dirtyDate, duration) {
   return finalDate;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../_lib/toInteger/index.js":33,"../addDays/index.js":36,"../addMonths/index.js":41,"../toDate/index.js":279}],35:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../_lib/toInteger/index.js":37,"../addDays/index.js":40,"../addMonths/index.js":45,"../toDate/index.js":283}],39:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -4314,7 +4444,7 @@ function addBusinessDays(dirtyDate, dirtyAmount) {
   return date;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../_lib/toInteger/index.js":33,"../isSaturday/index.js":162,"../isSunday/index.js":163,"../isWeekend/index.js":178,"../toDate/index.js":279}],36:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../_lib/toInteger/index.js":37,"../isSaturday/index.js":166,"../isSunday/index.js":167,"../isWeekend/index.js":182,"../toDate/index.js":283}],40:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -4370,7 +4500,7 @@ function addDays(dirtyDate, dirtyAmount) {
   return date;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../_lib/toInteger/index.js":33,"../toDate/index.js":279}],37:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../_lib/toInteger/index.js":37,"../toDate/index.js":283}],41:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -4416,7 +4546,7 @@ function addHours(dirtyDate, dirtyAmount) {
   return (0, _index2.default)(dirtyDate, amount * MILLISECONDS_IN_HOUR);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../_lib/toInteger/index.js":33,"../addMilliseconds/index.js":39}],38:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../_lib/toInteger/index.js":37,"../addMilliseconds/index.js":43}],42:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -4469,7 +4599,7 @@ function addISOWeekYears(dirtyDate, dirtyAmount) {
   return (0, _index3.default)(dirtyDate, (0, _index2.default)(dirtyDate) + amount);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../_lib/toInteger/index.js":33,"../getISOWeekYear/index.js":118,"../setISOWeekYear/index.js":243}],39:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../_lib/toInteger/index.js":37,"../getISOWeekYear/index.js":122,"../setISOWeekYear/index.js":247}],43:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -4514,7 +4644,7 @@ function addMilliseconds(dirtyDate, dirtyAmount) {
   return new Date(timestamp + amount);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../_lib/toInteger/index.js":33,"../toDate/index.js":279}],40:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../_lib/toInteger/index.js":37,"../toDate/index.js":283}],44:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -4560,7 +4690,7 @@ function addMinutes(dirtyDate, dirtyAmount) {
   return (0, _index2.default)(dirtyDate, amount * MILLISECONDS_IN_MINUTE);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../_lib/toInteger/index.js":33,"../addMilliseconds/index.js":39}],41:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../_lib/toInteger/index.js":37,"../addMilliseconds/index.js":43}],45:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -4642,7 +4772,7 @@ function addMonths(dirtyDate, dirtyAmount) {
   }
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../_lib/toInteger/index.js":33,"../toDate/index.js":279}],42:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../_lib/toInteger/index.js":37,"../toDate/index.js":283}],46:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -4687,7 +4817,7 @@ function addQuarters(dirtyDate, dirtyAmount) {
   return (0, _index2.default)(dirtyDate, months);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../_lib/toInteger/index.js":33,"../addMonths/index.js":41}],43:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../_lib/toInteger/index.js":37,"../addMonths/index.js":45}],47:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -4731,7 +4861,7 @@ function addSeconds(dirtyDate, dirtyAmount) {
   return (0, _index2.default)(dirtyDate, amount * 1000);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../_lib/toInteger/index.js":33,"../addMilliseconds/index.js":39}],44:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../_lib/toInteger/index.js":37,"../addMilliseconds/index.js":43}],48:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -4776,7 +4906,7 @@ function addWeeks(dirtyDate, dirtyAmount) {
   return (0, _index2.default)(dirtyDate, days);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../_lib/toInteger/index.js":33,"../addDays/index.js":36}],45:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../_lib/toInteger/index.js":37,"../addDays/index.js":40}],49:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -4820,7 +4950,7 @@ function addYears(dirtyDate, dirtyAmount) {
   return (0, _index2.default)(dirtyDate, amount * 12);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../_lib/toInteger/index.js":33,"../addMonths/index.js":41}],46:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../_lib/toInteger/index.js":37,"../addMonths/index.js":45}],50:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -4946,7 +5076,7 @@ function areIntervalsOverlapping(dirtyIntervalLeft, dirtyIntervalRight) {
   return leftStartTime < rightEndTime && rightStartTime < leftEndTime;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../toDate/index.js":279}],47:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../toDate/index.js":283}],51:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -4995,7 +5125,7 @@ function clamp(date, _ref) {
   return (0, _index2.default)([(0, _index.default)([date, start]), end]);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../max/index.js":199,"../min/index.js":204}],48:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../max/index.js":203,"../min/index.js":208}],52:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -5076,7 +5206,7 @@ function closestIndexTo(dirtyDateToCompare, dirtyDatesArray) {
   return result;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../toDate/index.js":279}],49:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../toDate/index.js":283}],53:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -5155,7 +5285,7 @@ function closestTo(dirtyDateToCompare, dirtyDatesArray) {
   return result;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../toDate/index.js":279}],50:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../toDate/index.js":283}],54:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -5220,7 +5350,7 @@ function compareAsc(dirtyDateLeft, dirtyDateRight) {
   }
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../toDate/index.js":279}],51:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../toDate/index.js":283}],55:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -5285,7 +5415,7 @@ function compareDesc(dirtyDateLeft, dirtyDateRight) {
   }
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../toDate/index.js":279}],52:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../toDate/index.js":283}],56:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -5425,7 +5555,7 @@ exports.secondsInHour = secondsInHour;
 var secondsInMinute = 60;
 exports.secondsInMinute = secondsInMinute;
 
-},{}],53:[function(require,module,exports){
+},{}],57:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -5468,7 +5598,7 @@ function daysToWeeks(days) {
   return Math.floor(weeks);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../constants/index.js":52}],54:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../constants/index.js":56}],58:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -5563,7 +5693,7 @@ function differenceInBusinessDays(dirtyDateLeft, dirtyDateRight) {
   return result === 0 ? 0 : result;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../_lib/toInteger/index.js":33,"../addDays/index.js":36,"../differenceInCalendarDays/index.js":55,"../isSameDay/index.js":152,"../isValid/index.js":176,"../isWeekend/index.js":178,"../toDate/index.js":279}],55:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../_lib/toInteger/index.js":37,"../addDays/index.js":40,"../differenceInCalendarDays/index.js":59,"../isSameDay/index.js":156,"../isValid/index.js":180,"../isWeekend/index.js":182,"../toDate/index.js":283}],59:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -5627,7 +5757,7 @@ function differenceInCalendarDays(dirtyDateLeft, dirtyDateRight) {
   return Math.round((timestampLeft - timestampRight) / MILLISECONDS_IN_DAY);
 }
 
-},{"../_lib/getTimezoneOffsetInMilliseconds/index.js":16,"../_lib/requiredArgs/index.js":23,"../startOfDay/index.js":252}],56:[function(require,module,exports){
+},{"../_lib/getTimezoneOffsetInMilliseconds/index.js":20,"../_lib/requiredArgs/index.js":27,"../startOfDay/index.js":256}],60:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -5678,7 +5808,7 @@ function differenceInCalendarISOWeekYears(dirtyDateLeft, dirtyDateRight) {
   return (0, _index.default)(dirtyDateLeft) - (0, _index.default)(dirtyDateRight);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../getISOWeekYear/index.js":118}],57:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../getISOWeekYear/index.js":122}],61:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -5735,7 +5865,7 @@ function differenceInCalendarISOWeeks(dirtyDateLeft, dirtyDateRight) {
   return Math.round((timestampLeft - timestampRight) / MILLISECONDS_IN_WEEK);
 }
 
-},{"../_lib/getTimezoneOffsetInMilliseconds/index.js":16,"../_lib/requiredArgs/index.js":23,"../startOfISOWeek/index.js":255}],58:[function(require,module,exports){
+},{"../_lib/getTimezoneOffsetInMilliseconds/index.js":20,"../_lib/requiredArgs/index.js":27,"../startOfISOWeek/index.js":259}],62:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -5783,7 +5913,7 @@ function differenceInCalendarMonths(dirtyDateLeft, dirtyDateRight) {
   return yearDiff * 12 + monthDiff;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../toDate/index.js":279}],59:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../toDate/index.js":283}],63:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -5833,7 +5963,7 @@ function differenceInCalendarQuarters(dirtyDateLeft, dirtyDateRight) {
   return yearDiff * 4 + quarterDiff;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../getQuarter/index.js":124,"../toDate/index.js":279}],60:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../getQuarter/index.js":128,"../toDate/index.js":283}],64:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -5902,7 +6032,7 @@ function differenceInCalendarWeeks(dirtyDateLeft, dirtyDateRight, dirtyOptions) 
   return Math.round((timestampLeft - timestampRight) / MILLISECONDS_IN_WEEK);
 }
 
-},{"../_lib/getTimezoneOffsetInMilliseconds/index.js":16,"../_lib/requiredArgs/index.js":23,"../startOfWeek/index.js":263}],61:[function(require,module,exports){
+},{"../_lib/getTimezoneOffsetInMilliseconds/index.js":20,"../_lib/requiredArgs/index.js":27,"../startOfWeek/index.js":267}],65:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -5948,7 +6078,7 @@ function differenceInCalendarYears(dirtyDateLeft, dirtyDateRight) {
   return dateLeft.getFullYear() - dateRight.getFullYear();
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../toDate/index.js":279}],62:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../toDate/index.js":283}],66:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -6049,7 +6179,7 @@ function differenceInDays(dirtyDateLeft, dirtyDateRight) {
   return result === 0 ? 0 : result;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../differenceInCalendarDays/index.js":55,"../toDate/index.js":279}],63:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../differenceInCalendarDays/index.js":59,"../toDate/index.js":283}],67:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -6102,7 +6232,7 @@ function differenceInHours(dateLeft, dateRight, options) {
   return (0, _index4.getRoundingMethod)(options === null || options === void 0 ? void 0 : options.roundingMethod)(diff);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../_lib/roundingMethods/index.js":24,"../constants/index.js":52,"../differenceInMilliseconds/index.js":65}],64:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../_lib/roundingMethods/index.js":28,"../constants/index.js":56,"../differenceInMilliseconds/index.js":69}],68:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -6170,7 +6300,7 @@ function differenceInISOWeekYears(dirtyDateLeft, dirtyDateRight) {
   return result === 0 ? 0 : result;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../compareAsc/index.js":50,"../differenceInCalendarISOWeekYears/index.js":56,"../subISOWeekYears/index.js":271,"../toDate/index.js":279}],65:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../compareAsc/index.js":54,"../differenceInCalendarISOWeekYears/index.js":60,"../subISOWeekYears/index.js":275,"../toDate/index.js":283}],69:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -6215,7 +6345,7 @@ function differenceInMilliseconds(dateLeft, dateRight) {
   return (0, _index.default)(dateLeft).getTime() - (0, _index.default)(dateRight).getTime();
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../toDate/index.js":279}],66:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../toDate/index.js":283}],70:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -6276,7 +6406,7 @@ function differenceInMinutes(dateLeft, dateRight, options) {
   return (0, _index4.getRoundingMethod)(options === null || options === void 0 ? void 0 : options.roundingMethod)(diff);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../_lib/roundingMethods/index.js":24,"../constants/index.js":52,"../differenceInMilliseconds/index.js":65}],67:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../_lib/roundingMethods/index.js":28,"../constants/index.js":56,"../differenceInMilliseconds/index.js":69}],71:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -6351,7 +6481,7 @@ function differenceInMonths(dirtyDateLeft, dirtyDateRight) {
   return result === 0 ? 0 : result;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../compareAsc/index.js":50,"../differenceInCalendarMonths/index.js":58,"../isLastDayOfMonth/index.js":147,"../toDate/index.js":279}],68:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../compareAsc/index.js":54,"../differenceInCalendarMonths/index.js":62,"../isLastDayOfMonth/index.js":151,"../toDate/index.js":283}],72:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -6397,7 +6527,7 @@ function differenceInQuarters(dateLeft, dateRight, options) {
   return (0, _index3.getRoundingMethod)(options === null || options === void 0 ? void 0 : options.roundingMethod)(diff);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../_lib/roundingMethods/index.js":24,"../differenceInMonths/index.js":67}],69:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../_lib/roundingMethods/index.js":28,"../differenceInMonths/index.js":71}],73:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -6447,7 +6577,7 @@ function differenceInSeconds(dateLeft, dateRight, options) {
   return (0, _index3.getRoundingMethod)(options === null || options === void 0 ? void 0 : options.roundingMethod)(diff);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../_lib/roundingMethods/index.js":24,"../differenceInMilliseconds/index.js":65}],70:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../_lib/roundingMethods/index.js":28,"../differenceInMilliseconds/index.js":69}],74:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -6514,7 +6644,7 @@ function differenceInWeeks(dateLeft, dateRight, options) {
   return (0, _index3.getRoundingMethod)(options === null || options === void 0 ? void 0 : options.roundingMethod)(diff);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../_lib/roundingMethods/index.js":24,"../differenceInDays/index.js":62}],71:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../_lib/roundingMethods/index.js":28,"../differenceInDays/index.js":66}],75:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -6572,7 +6702,7 @@ function differenceInYears(dirtyDateLeft, dirtyDateRight) {
   return result === 0 ? 0 : result;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../compareAsc/index.js":50,"../differenceInCalendarYears/index.js":61,"../toDate/index.js":279}],72:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../compareAsc/index.js":54,"../differenceInCalendarYears/index.js":65,"../toDate/index.js":283}],76:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -6673,7 +6803,7 @@ function eachDayOfInterval(dirtyInterval, options) {
   return dates;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../toDate/index.js":279}],73:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../toDate/index.js":283}],77:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -6745,7 +6875,7 @@ function eachHourOfInterval(dirtyInterval, options) {
   return dates;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../addHours/index.js":37,"../toDate/index.js":279}],74:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../addHours/index.js":41,"../toDate/index.js":283}],78:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -6817,7 +6947,7 @@ function eachMinuteOfInterval(interval, options) {
   return dates;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../addMinutes/index.js":40,"../startOfMinute/index.js":257,"../toDate/index.js":279}],75:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../addMinutes/index.js":44,"../startOfMinute/index.js":261,"../toDate/index.js":283}],79:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -6885,7 +7015,7 @@ function eachMonthOfInterval(dirtyInterval) {
   return dates;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../toDate/index.js":279}],76:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../toDate/index.js":283}],80:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -6954,7 +7084,7 @@ function eachQuarterOfInterval(dirtyInterval) {
   return quarters;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../addQuarters/index.js":42,"../startOfQuarter/index.js":259,"../toDate/index.js":279}],77:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../addQuarters/index.js":46,"../startOfQuarter/index.js":263,"../toDate/index.js":283}],81:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -7041,7 +7171,7 @@ function eachWeekOfInterval(dirtyInterval, options) {
   return weeks;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../addWeeks/index.js":44,"../startOfWeek/index.js":263,"../toDate/index.js":279}],78:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../addWeeks/index.js":48,"../startOfWeek/index.js":267,"../toDate/index.js":283}],82:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -7104,7 +7234,7 @@ function eachWeekendOfInterval(interval) {
   return weekends;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../eachDayOfInterval/index.js":72,"../isSunday/index.js":163,"../isWeekend/index.js":178}],79:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../eachDayOfInterval/index.js":76,"../isSunday/index.js":167,"../isWeekend/index.js":182}],83:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -7160,7 +7290,7 @@ function eachWeekendOfMonth(dirtyDate) {
   });
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../eachWeekendOfInterval/index.js":78,"../endOfMonth/index.js":88,"../startOfMonth/index.js":258}],80:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../eachWeekendOfInterval/index.js":82,"../endOfMonth/index.js":92,"../startOfMonth/index.js":262}],84:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -7213,7 +7343,7 @@ function eachWeekendOfYear(dirtyDate) {
   });
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../eachWeekendOfInterval/index.js":78,"../endOfYear/index.js":94,"../startOfYear/index.js":265}],81:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../eachWeekendOfInterval/index.js":82,"../endOfYear/index.js":98,"../startOfYear/index.js":269}],85:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -7278,7 +7408,7 @@ function eachYearOfInterval(dirtyInterval) {
   return dates;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../toDate/index.js":279}],82:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../toDate/index.js":283}],86:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -7321,7 +7451,7 @@ function endOfDay(dirtyDate) {
   return date;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../toDate/index.js":279}],83:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../toDate/index.js":283}],87:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -7369,7 +7499,7 @@ function endOfDecade(dirtyDate) {
   return date;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../toDate/index.js":279}],84:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../toDate/index.js":283}],88:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -7412,7 +7542,7 @@ function endOfHour(dirtyDate) {
   return date;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../toDate/index.js":279}],85:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../toDate/index.js":283}],89:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -7457,7 +7587,7 @@ function endOfISOWeek(dirtyDate) {
   });
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../endOfWeek/index.js":93}],86:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../endOfWeek/index.js":97}],90:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -7514,7 +7644,7 @@ function endOfISOWeekYear(dirtyDate) {
   return date;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../getISOWeekYear/index.js":118,"../startOfISOWeek/index.js":255}],87:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../getISOWeekYear/index.js":122,"../startOfISOWeek/index.js":259}],91:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -7557,7 +7687,7 @@ function endOfMinute(dirtyDate) {
   return date;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../toDate/index.js":279}],88:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../toDate/index.js":283}],92:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -7602,7 +7732,7 @@ function endOfMonth(dirtyDate) {
   return date;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../toDate/index.js":279}],89:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../toDate/index.js":283}],93:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -7648,7 +7778,7 @@ function endOfQuarter(dirtyDate) {
   return date;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../toDate/index.js":279}],90:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../toDate/index.js":283}],94:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -7691,7 +7821,7 @@ function endOfSecond(dirtyDate) {
   return date;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../toDate/index.js":279}],91:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../toDate/index.js":283}],95:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -7730,7 +7860,7 @@ function endOfToday() {
   return (0, _index.default)(Date.now());
 }
 
-},{"../endOfDay/index.js":82}],92:[function(require,module,exports){
+},{"../endOfDay/index.js":86}],96:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -7772,7 +7902,7 @@ function endOfTomorrow() {
   return date;
 }
 
-},{}],93:[function(require,module,exports){
+},{}],97:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -7839,7 +7969,7 @@ function endOfWeek(dirtyDate, dirtyOptions) {
   return date;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../_lib/toInteger/index.js":33,"../toDate/index.js":279}],94:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../_lib/toInteger/index.js":37,"../toDate/index.js":283}],98:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -7884,7 +8014,7 @@ function endOfYear(dirtyDate) {
   return date;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../toDate/index.js":279}],95:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../toDate/index.js":283}],99:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -7926,7 +8056,7 @@ function endOfYesterday() {
   return date;
 }
 
-},{}],96:[function(require,module,exports){
+},{}],100:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -8380,7 +8510,7 @@ function cleanEscapedString(input) {
   return input.match(escapedStringRegExp)[1].replace(doubleQuoteRegExp, "'");
 }
 
-},{"../_lib/format/formatters/index.js":13,"../_lib/format/longFormatters/index.js":15,"../_lib/getTimezoneOffsetInMilliseconds/index.js":16,"../_lib/protectedTokens/index.js":22,"../_lib/requiredArgs/index.js":23,"../_lib/toInteger/index.js":33,"../isValid/index.js":176,"../locale/en-US/index.js":198,"../subMilliseconds/index.js":272,"../toDate/index.js":279}],97:[function(require,module,exports){
+},{"../_lib/format/formatters/index.js":17,"../_lib/format/longFormatters/index.js":19,"../_lib/getTimezoneOffsetInMilliseconds/index.js":20,"../_lib/protectedTokens/index.js":26,"../_lib/requiredArgs/index.js":27,"../_lib/toInteger/index.js":37,"../isValid/index.js":180,"../locale/en-US/index.js":202,"../subMilliseconds/index.js":276,"../toDate/index.js":283}],101:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -8612,7 +8742,7 @@ function formatDistance(dirtyDate, dirtyBaseDate) {
   }
 }
 
-},{"../_lib/cloneObject/index.js":12,"../_lib/getTimezoneOffsetInMilliseconds/index.js":16,"../_lib/requiredArgs/index.js":23,"../compareAsc/index.js":50,"../differenceInMonths/index.js":67,"../differenceInSeconds/index.js":69,"../locale/en-US/index.js":198,"../toDate/index.js":279}],98:[function(require,module,exports){
+},{"../_lib/cloneObject/index.js":16,"../_lib/getTimezoneOffsetInMilliseconds/index.js":20,"../_lib/requiredArgs/index.js":27,"../compareAsc/index.js":54,"../differenceInMonths/index.js":71,"../differenceInSeconds/index.js":73,"../locale/en-US/index.js":202,"../toDate/index.js":283}],102:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -8881,7 +9011,7 @@ function formatDistanceStrict(dirtyDate, dirtyBaseDate) {
   throw new RangeError("unit must be 'second', 'minute', 'hour', 'day', 'month' or 'year'");
 }
 
-},{"../_lib/cloneObject/index.js":12,"../_lib/getTimezoneOffsetInMilliseconds/index.js":16,"../_lib/requiredArgs/index.js":23,"../compareAsc/index.js":50,"../locale/en-US/index.js":198,"../toDate/index.js":279}],99:[function(require,module,exports){
+},{"../_lib/cloneObject/index.js":16,"../_lib/getTimezoneOffsetInMilliseconds/index.js":20,"../_lib/requiredArgs/index.js":27,"../compareAsc/index.js":54,"../locale/en-US/index.js":202,"../toDate/index.js":283}],103:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -9005,7 +9135,7 @@ function formatDistanceToNow(dirtyDate, dirtyOptions) {
   return (0, _index.default)(dirtyDate, Date.now(), dirtyOptions);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../formatDistance/index.js":97}],100:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../formatDistance/index.js":101}],104:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -9098,7 +9228,7 @@ function formatDistanceToNowStrict(dirtyDate, dirtyOptions) {
   return (0, _index.default)(dirtyDate, Date.now(), dirtyOptions);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../formatDistanceStrict/index.js":98}],101:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../formatDistanceStrict/index.js":102}],105:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -9195,7 +9325,7 @@ function formatDuration(duration) {
   return result;
 }
 
-},{"../locale/en-US/index.js":198}],102:[function(require,module,exports){
+},{"../locale/en-US/index.js":202}],106:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -9311,7 +9441,7 @@ function formatISO(date, options) {
   return result;
 }
 
-},{"../_lib/addLeadingZeros/index.js":10,"../_lib/requiredArgs/index.js":23,"../toDate/index.js":279}],103:[function(require,module,exports){
+},{"../_lib/addLeadingZeros/index.js":14,"../_lib/requiredArgs/index.js":27,"../toDate/index.js":283}],107:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -9414,7 +9544,7 @@ function formatISO9075(dirtyDate, dirtyOptions) {
   return result;
 }
 
-},{"../_lib/addLeadingZeros/index.js":10,"../isValid/index.js":176,"../toDate/index.js":279}],104:[function(require,module,exports){
+},{"../_lib/addLeadingZeros/index.js":14,"../isValid/index.js":180,"../toDate/index.js":283}],108:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -9470,7 +9600,7 @@ function formatISODuration(duration) {
   return "P".concat(years, "Y").concat(months, "M").concat(days, "DT").concat(hours, "H").concat(minutes, "M").concat(seconds, "S");
 }
 
-},{"../_lib/requiredArgs/index.js":23}],105:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27}],109:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -9570,7 +9700,7 @@ function formatRFC3339(dirtyDate, dirtyOptions) {
   return "".concat(year, "-").concat(month, "-").concat(day, "T").concat(hour, ":").concat(minute, ":").concat(second).concat(fractionalSecond).concat(offset);
 }
 
-},{"../_lib/addLeadingZeros/index.js":10,"../_lib/toInteger/index.js":33,"../isValid/index.js":176,"../toDate/index.js":279}],106:[function(require,module,exports){
+},{"../_lib/addLeadingZeros/index.js":14,"../_lib/toInteger/index.js":37,"../isValid/index.js":180,"../toDate/index.js":283}],110:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -9630,7 +9760,7 @@ function formatRFC7231(dirtyDate) {
   return "".concat(dayName, ", ").concat(dayOfMonth, " ").concat(monthName, " ").concat(year, " ").concat(hour, ":").concat(minute, ":").concat(second, " GMT");
 }
 
-},{"../_lib/addLeadingZeros/index.js":10,"../isValid/index.js":176,"../toDate/index.js":279}],107:[function(require,module,exports){
+},{"../_lib/addLeadingZeros/index.js":14,"../isValid/index.js":180,"../toDate/index.js":283}],111:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -9753,7 +9883,7 @@ function formatRelative(dirtyDate, dirtyBaseDate, dirtyOptions) {
   });
 }
 
-},{"../_lib/getTimezoneOffsetInMilliseconds/index.js":16,"../_lib/requiredArgs/index.js":23,"../differenceInCalendarDays/index.js":55,"../format/index.js":96,"../locale/en-US/index.js":198,"../subMilliseconds/index.js":272,"../toDate/index.js":279}],108:[function(require,module,exports){
+},{"../_lib/getTimezoneOffsetInMilliseconds/index.js":20,"../_lib/requiredArgs/index.js":27,"../differenceInCalendarDays/index.js":59,"../format/index.js":100,"../locale/en-US/index.js":202,"../subMilliseconds/index.js":276,"../toDate/index.js":283}],112:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -9796,7 +9926,7 @@ function fromUnixTime(dirtyUnixTime) {
   return (0, _index.default)(unixTime * 1000);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../_lib/toInteger/index.js":33,"../toDate/index.js":279}],109:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../_lib/toInteger/index.js":37,"../toDate/index.js":283}],113:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -9838,7 +9968,7 @@ function getDate(dirtyDate) {
   return dayOfMonth;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../toDate/index.js":279}],110:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../toDate/index.js":283}],114:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -9880,7 +10010,7 @@ function getDay(dirtyDate) {
   return day;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../toDate/index.js":279}],111:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../toDate/index.js":283}],115:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -9927,7 +10057,7 @@ function getDayOfYear(dirtyDate) {
   return dayOfYear;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../differenceInCalendarDays/index.js":55,"../startOfYear/index.js":265,"../toDate/index.js":279}],112:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../differenceInCalendarDays/index.js":59,"../startOfYear/index.js":269,"../toDate/index.js":283}],116:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -9973,7 +10103,7 @@ function getDaysInMonth(dirtyDate) {
   return lastDayOfMonth.getDate();
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../toDate/index.js":279}],113:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../toDate/index.js":283}],117:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -10021,7 +10151,7 @@ function getDaysInYear(dirtyDate) {
   return (0, _index2.default)(date) ? 366 : 365;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../isLeapYear/index.js":148,"../toDate/index.js":279}],114:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../isLeapYear/index.js":152,"../toDate/index.js":283}],118:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -10064,7 +10194,7 @@ function getDecade(dirtyDate) {
   return decade;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../toDate/index.js":279}],115:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../toDate/index.js":283}],119:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -10106,7 +10236,7 @@ function getHours(dirtyDate) {
   return hours;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../toDate/index.js":279}],116:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../toDate/index.js":283}],120:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -10156,7 +10286,7 @@ function getISODay(dirtyDate) {
   return day;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../toDate/index.js":279}],117:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../toDate/index.js":283}],121:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -10209,7 +10339,7 @@ function getISOWeek(dirtyDate) {
   return Math.round(diff / MILLISECONDS_IN_WEEK) + 1;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../startOfISOWeek/index.js":255,"../startOfISOWeekYear/index.js":256,"../toDate/index.js":279}],118:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../startOfISOWeek/index.js":259,"../startOfISOWeekYear/index.js":260,"../toDate/index.js":283}],122:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -10276,7 +10406,7 @@ function getISOWeekYear(dirtyDate) {
   }
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../startOfISOWeek/index.js":255,"../toDate/index.js":279}],119:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../startOfISOWeek/index.js":259,"../toDate/index.js":283}],123:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -10328,7 +10458,7 @@ function getISOWeeksInYear(dirtyDate) {
   return Math.round(diff / MILLISECONDS_IN_WEEK);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../addWeeks/index.js":44,"../startOfISOWeekYear/index.js":256}],120:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../addWeeks/index.js":48,"../startOfISOWeekYear/index.js":260}],124:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -10370,7 +10500,7 @@ function getMilliseconds(dirtyDate) {
   return milliseconds;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../toDate/index.js":279}],121:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../toDate/index.js":283}],125:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -10412,7 +10542,7 @@ function getMinutes(dirtyDate) {
   return minutes;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../toDate/index.js":279}],122:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../toDate/index.js":283}],126:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -10454,7 +10584,7 @@ function getMonth(dirtyDate) {
   return month;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../toDate/index.js":279}],123:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../toDate/index.js":283}],127:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -10560,7 +10690,7 @@ function getOverlappingDaysInIntervals(dirtyIntervalLeft, dirtyIntervalRight) {
   return Math.ceil(differenceInMs / MILLISECONDS_IN_DAY);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../toDate/index.js":279}],124:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../toDate/index.js":283}],128:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -10602,7 +10732,7 @@ function getQuarter(dirtyDate) {
   return quarter;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../toDate/index.js":279}],125:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../toDate/index.js":283}],129:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -10644,7 +10774,7 @@ function getSeconds(dirtyDate) {
   return seconds;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../toDate/index.js":279}],126:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../toDate/index.js":283}],130:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -10686,7 +10816,7 @@ function getTime(dirtyDate) {
   return timestamp;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../toDate/index.js":279}],127:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../toDate/index.js":283}],131:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -10726,7 +10856,7 @@ function getUnixTime(dirtyDate) {
   return Math.floor((0, _index.default)(dirtyDate) / 1000);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../getTime/index.js":126}],128:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../getTime/index.js":130}],132:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -10798,7 +10928,7 @@ function getWeek(dirtyDate, options) {
   return Math.round(diff / MILLISECONDS_IN_WEEK) + 1;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../startOfWeek/index.js":263,"../startOfWeekYear/index.js":264,"../toDate/index.js":279}],129:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../startOfWeek/index.js":267,"../startOfWeekYear/index.js":268,"../toDate/index.js":283}],133:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -10863,7 +10993,7 @@ function getWeekOfMonth(date, options) {
   return Math.ceil(remainingDaysAfterFirstWeek / 7) + 1;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../_lib/toInteger/index.js":33,"../getDate/index.js":109,"../getDay/index.js":110,"../startOfMonth/index.js":258}],130:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../_lib/toInteger/index.js":37,"../getDate/index.js":113,"../getDay/index.js":114,"../startOfMonth/index.js":262}],134:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -10956,7 +11086,7 @@ function getWeekYear(dirtyDate, options) {
   }
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../_lib/toInteger/index.js":33,"../startOfWeek/index.js":263,"../toDate/index.js":279}],131:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../_lib/toInteger/index.js":37,"../startOfWeek/index.js":267,"../toDate/index.js":283}],135:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -11010,7 +11140,7 @@ function getWeeksInMonth(date, options) {
   return (0, _index.default)((0, _index2.default)(date), (0, _index3.default)(date), options) + 1;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../differenceInCalendarWeeks/index.js":60,"../lastDayOfMonth/index.js":184,"../startOfMonth/index.js":258}],132:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../differenceInCalendarWeeks/index.js":64,"../lastDayOfMonth/index.js":188,"../startOfMonth/index.js":262}],136:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -11050,7 +11180,7 @@ function getYear(dirtyDate) {
   return (0, _index.default)(dirtyDate).getFullYear();
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../toDate/index.js":279}],133:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../toDate/index.js":283}],137:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -11087,7 +11217,7 @@ function hoursToMilliseconds(hours) {
   return Math.floor(hours * _index2.millisecondsInHour);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../constants/index.js":52}],134:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../constants/index.js":56}],138:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -11124,7 +11254,7 @@ function hoursToMinutes(hours) {
   return Math.floor(hours * _index2.minutesInHour);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../constants/index.js":52}],135:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../constants/index.js":56}],139:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -11161,7 +11291,7 @@ function hoursToSeconds(hours) {
   return Math.floor(hours * _index2.secondsInHour);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../constants/index.js":52}],136:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../constants/index.js":56}],140:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -13310,7 +13440,7 @@ Object.keys(_index237).forEach(function (key) {
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
-},{"./add/index.js":34,"./addBusinessDays/index.js":35,"./addDays/index.js":36,"./addHours/index.js":37,"./addISOWeekYears/index.js":38,"./addMilliseconds/index.js":39,"./addMinutes/index.js":40,"./addMonths/index.js":41,"./addQuarters/index.js":42,"./addSeconds/index.js":43,"./addWeeks/index.js":44,"./addYears/index.js":45,"./areIntervalsOverlapping/index.js":46,"./clamp/index.js":47,"./closestIndexTo/index.js":48,"./closestTo/index.js":49,"./compareAsc/index.js":50,"./compareDesc/index.js":51,"./constants/index.js":52,"./daysToWeeks/index.js":53,"./differenceInBusinessDays/index.js":54,"./differenceInCalendarDays/index.js":55,"./differenceInCalendarISOWeekYears/index.js":56,"./differenceInCalendarISOWeeks/index.js":57,"./differenceInCalendarMonths/index.js":58,"./differenceInCalendarQuarters/index.js":59,"./differenceInCalendarWeeks/index.js":60,"./differenceInCalendarYears/index.js":61,"./differenceInDays/index.js":62,"./differenceInHours/index.js":63,"./differenceInISOWeekYears/index.js":64,"./differenceInMilliseconds/index.js":65,"./differenceInMinutes/index.js":66,"./differenceInMonths/index.js":67,"./differenceInQuarters/index.js":68,"./differenceInSeconds/index.js":69,"./differenceInWeeks/index.js":70,"./differenceInYears/index.js":71,"./eachDayOfInterval/index.js":72,"./eachHourOfInterval/index.js":73,"./eachMinuteOfInterval/index.js":74,"./eachMonthOfInterval/index.js":75,"./eachQuarterOfInterval/index.js":76,"./eachWeekOfInterval/index.js":77,"./eachWeekendOfInterval/index.js":78,"./eachWeekendOfMonth/index.js":79,"./eachWeekendOfYear/index.js":80,"./eachYearOfInterval/index.js":81,"./endOfDay/index.js":82,"./endOfDecade/index.js":83,"./endOfHour/index.js":84,"./endOfISOWeek/index.js":85,"./endOfISOWeekYear/index.js":86,"./endOfMinute/index.js":87,"./endOfMonth/index.js":88,"./endOfQuarter/index.js":89,"./endOfSecond/index.js":90,"./endOfToday/index.js":91,"./endOfTomorrow/index.js":92,"./endOfWeek/index.js":93,"./endOfYear/index.js":94,"./endOfYesterday/index.js":95,"./format/index.js":96,"./formatDistance/index.js":97,"./formatDistanceStrict/index.js":98,"./formatDistanceToNow/index.js":99,"./formatDistanceToNowStrict/index.js":100,"./formatDuration/index.js":101,"./formatISO/index.js":102,"./formatISO9075/index.js":103,"./formatISODuration/index.js":104,"./formatRFC3339/index.js":105,"./formatRFC7231/index.js":106,"./formatRelative/index.js":107,"./fromUnixTime/index.js":108,"./getDate/index.js":109,"./getDay/index.js":110,"./getDayOfYear/index.js":111,"./getDaysInMonth/index.js":112,"./getDaysInYear/index.js":113,"./getDecade/index.js":114,"./getHours/index.js":115,"./getISODay/index.js":116,"./getISOWeek/index.js":117,"./getISOWeekYear/index.js":118,"./getISOWeeksInYear/index.js":119,"./getMilliseconds/index.js":120,"./getMinutes/index.js":121,"./getMonth/index.js":122,"./getOverlappingDaysInIntervals/index.js":123,"./getQuarter/index.js":124,"./getSeconds/index.js":125,"./getTime/index.js":126,"./getUnixTime/index.js":127,"./getWeek/index.js":128,"./getWeekOfMonth/index.js":129,"./getWeekYear/index.js":130,"./getWeeksInMonth/index.js":131,"./getYear/index.js":132,"./hoursToMilliseconds/index.js":133,"./hoursToMinutes/index.js":134,"./hoursToSeconds/index.js":135,"./intervalToDuration/index.js":137,"./intlFormat/index.js":138,"./isAfter/index.js":139,"./isBefore/index.js":140,"./isDate/index.js":141,"./isEqual/index.js":142,"./isExists/index.js":143,"./isFirstDayOfMonth/index.js":144,"./isFriday/index.js":145,"./isFuture/index.js":146,"./isLastDayOfMonth/index.js":147,"./isLeapYear/index.js":148,"./isMatch/index.js":149,"./isMonday/index.js":150,"./isPast/index.js":151,"./isSameDay/index.js":152,"./isSameHour/index.js":153,"./isSameISOWeek/index.js":154,"./isSameISOWeekYear/index.js":155,"./isSameMinute/index.js":156,"./isSameMonth/index.js":157,"./isSameQuarter/index.js":158,"./isSameSecond/index.js":159,"./isSameWeek/index.js":160,"./isSameYear/index.js":161,"./isSaturday/index.js":162,"./isSunday/index.js":163,"./isThisHour/index.js":164,"./isThisISOWeek/index.js":165,"./isThisMinute/index.js":166,"./isThisMonth/index.js":167,"./isThisQuarter/index.js":168,"./isThisSecond/index.js":169,"./isThisWeek/index.js":170,"./isThisYear/index.js":171,"./isThursday/index.js":172,"./isToday/index.js":173,"./isTomorrow/index.js":174,"./isTuesday/index.js":175,"./isValid/index.js":176,"./isWednesday/index.js":177,"./isWeekend/index.js":178,"./isWithinInterval/index.js":179,"./isYesterday/index.js":180,"./lastDayOfDecade/index.js":181,"./lastDayOfISOWeek/index.js":182,"./lastDayOfISOWeekYear/index.js":183,"./lastDayOfMonth/index.js":184,"./lastDayOfQuarter/index.js":185,"./lastDayOfWeek/index.js":186,"./lastDayOfYear/index.js":187,"./lightFormat/index.js":188,"./max/index.js":199,"./milliseconds/index.js":200,"./millisecondsToHours/index.js":201,"./millisecondsToMinutes/index.js":202,"./millisecondsToSeconds/index.js":203,"./min/index.js":204,"./minutesToHours/index.js":205,"./minutesToMilliseconds/index.js":206,"./minutesToSeconds/index.js":207,"./monthsToQuarters/index.js":208,"./monthsToYears/index.js":209,"./nextDay/index.js":210,"./nextFriday/index.js":211,"./nextMonday/index.js":212,"./nextSaturday/index.js":213,"./nextSunday/index.js":214,"./nextThursday/index.js":215,"./nextTuesday/index.js":216,"./nextWednesday/index.js":217,"./parse/index.js":219,"./parseISO/index.js":220,"./parseJSON/index.js":221,"./previousDay/index.js":222,"./previousFriday/index.js":223,"./previousMonday/index.js":224,"./previousSaturday/index.js":225,"./previousSunday/index.js":226,"./previousThursday/index.js":227,"./previousTuesday/index.js":228,"./previousWednesday/index.js":229,"./quartersToMonths/index.js":230,"./quartersToYears/index.js":231,"./roundToNearestMinutes/index.js":232,"./secondsToHours/index.js":233,"./secondsToMilliseconds/index.js":234,"./secondsToMinutes/index.js":235,"./set/index.js":236,"./setDate/index.js":237,"./setDay/index.js":238,"./setDayOfYear/index.js":239,"./setHours/index.js":240,"./setISODay/index.js":241,"./setISOWeek/index.js":242,"./setISOWeekYear/index.js":243,"./setMilliseconds/index.js":244,"./setMinutes/index.js":245,"./setMonth/index.js":246,"./setQuarter/index.js":247,"./setSeconds/index.js":248,"./setWeek/index.js":249,"./setWeekYear/index.js":250,"./setYear/index.js":251,"./startOfDay/index.js":252,"./startOfDecade/index.js":253,"./startOfHour/index.js":254,"./startOfISOWeek/index.js":255,"./startOfISOWeekYear/index.js":256,"./startOfMinute/index.js":257,"./startOfMonth/index.js":258,"./startOfQuarter/index.js":259,"./startOfSecond/index.js":260,"./startOfToday/index.js":261,"./startOfTomorrow/index.js":262,"./startOfWeek/index.js":263,"./startOfWeekYear/index.js":264,"./startOfYear/index.js":265,"./startOfYesterday/index.js":266,"./sub/index.js":267,"./subBusinessDays/index.js":268,"./subDays/index.js":269,"./subHours/index.js":270,"./subISOWeekYears/index.js":271,"./subMilliseconds/index.js":272,"./subMinutes/index.js":273,"./subMonths/index.js":274,"./subQuarters/index.js":275,"./subSeconds/index.js":276,"./subWeeks/index.js":277,"./subYears/index.js":278,"./toDate/index.js":279,"./weeksToDays/index.js":280,"./yearsToMonths/index.js":281,"./yearsToQuarters/index.js":282}],137:[function(require,module,exports){
+},{"./add/index.js":38,"./addBusinessDays/index.js":39,"./addDays/index.js":40,"./addHours/index.js":41,"./addISOWeekYears/index.js":42,"./addMilliseconds/index.js":43,"./addMinutes/index.js":44,"./addMonths/index.js":45,"./addQuarters/index.js":46,"./addSeconds/index.js":47,"./addWeeks/index.js":48,"./addYears/index.js":49,"./areIntervalsOverlapping/index.js":50,"./clamp/index.js":51,"./closestIndexTo/index.js":52,"./closestTo/index.js":53,"./compareAsc/index.js":54,"./compareDesc/index.js":55,"./constants/index.js":56,"./daysToWeeks/index.js":57,"./differenceInBusinessDays/index.js":58,"./differenceInCalendarDays/index.js":59,"./differenceInCalendarISOWeekYears/index.js":60,"./differenceInCalendarISOWeeks/index.js":61,"./differenceInCalendarMonths/index.js":62,"./differenceInCalendarQuarters/index.js":63,"./differenceInCalendarWeeks/index.js":64,"./differenceInCalendarYears/index.js":65,"./differenceInDays/index.js":66,"./differenceInHours/index.js":67,"./differenceInISOWeekYears/index.js":68,"./differenceInMilliseconds/index.js":69,"./differenceInMinutes/index.js":70,"./differenceInMonths/index.js":71,"./differenceInQuarters/index.js":72,"./differenceInSeconds/index.js":73,"./differenceInWeeks/index.js":74,"./differenceInYears/index.js":75,"./eachDayOfInterval/index.js":76,"./eachHourOfInterval/index.js":77,"./eachMinuteOfInterval/index.js":78,"./eachMonthOfInterval/index.js":79,"./eachQuarterOfInterval/index.js":80,"./eachWeekOfInterval/index.js":81,"./eachWeekendOfInterval/index.js":82,"./eachWeekendOfMonth/index.js":83,"./eachWeekendOfYear/index.js":84,"./eachYearOfInterval/index.js":85,"./endOfDay/index.js":86,"./endOfDecade/index.js":87,"./endOfHour/index.js":88,"./endOfISOWeek/index.js":89,"./endOfISOWeekYear/index.js":90,"./endOfMinute/index.js":91,"./endOfMonth/index.js":92,"./endOfQuarter/index.js":93,"./endOfSecond/index.js":94,"./endOfToday/index.js":95,"./endOfTomorrow/index.js":96,"./endOfWeek/index.js":97,"./endOfYear/index.js":98,"./endOfYesterday/index.js":99,"./format/index.js":100,"./formatDistance/index.js":101,"./formatDistanceStrict/index.js":102,"./formatDistanceToNow/index.js":103,"./formatDistanceToNowStrict/index.js":104,"./formatDuration/index.js":105,"./formatISO/index.js":106,"./formatISO9075/index.js":107,"./formatISODuration/index.js":108,"./formatRFC3339/index.js":109,"./formatRFC7231/index.js":110,"./formatRelative/index.js":111,"./fromUnixTime/index.js":112,"./getDate/index.js":113,"./getDay/index.js":114,"./getDayOfYear/index.js":115,"./getDaysInMonth/index.js":116,"./getDaysInYear/index.js":117,"./getDecade/index.js":118,"./getHours/index.js":119,"./getISODay/index.js":120,"./getISOWeek/index.js":121,"./getISOWeekYear/index.js":122,"./getISOWeeksInYear/index.js":123,"./getMilliseconds/index.js":124,"./getMinutes/index.js":125,"./getMonth/index.js":126,"./getOverlappingDaysInIntervals/index.js":127,"./getQuarter/index.js":128,"./getSeconds/index.js":129,"./getTime/index.js":130,"./getUnixTime/index.js":131,"./getWeek/index.js":132,"./getWeekOfMonth/index.js":133,"./getWeekYear/index.js":134,"./getWeeksInMonth/index.js":135,"./getYear/index.js":136,"./hoursToMilliseconds/index.js":137,"./hoursToMinutes/index.js":138,"./hoursToSeconds/index.js":139,"./intervalToDuration/index.js":141,"./intlFormat/index.js":142,"./isAfter/index.js":143,"./isBefore/index.js":144,"./isDate/index.js":145,"./isEqual/index.js":146,"./isExists/index.js":147,"./isFirstDayOfMonth/index.js":148,"./isFriday/index.js":149,"./isFuture/index.js":150,"./isLastDayOfMonth/index.js":151,"./isLeapYear/index.js":152,"./isMatch/index.js":153,"./isMonday/index.js":154,"./isPast/index.js":155,"./isSameDay/index.js":156,"./isSameHour/index.js":157,"./isSameISOWeek/index.js":158,"./isSameISOWeekYear/index.js":159,"./isSameMinute/index.js":160,"./isSameMonth/index.js":161,"./isSameQuarter/index.js":162,"./isSameSecond/index.js":163,"./isSameWeek/index.js":164,"./isSameYear/index.js":165,"./isSaturday/index.js":166,"./isSunday/index.js":167,"./isThisHour/index.js":168,"./isThisISOWeek/index.js":169,"./isThisMinute/index.js":170,"./isThisMonth/index.js":171,"./isThisQuarter/index.js":172,"./isThisSecond/index.js":173,"./isThisWeek/index.js":174,"./isThisYear/index.js":175,"./isThursday/index.js":176,"./isToday/index.js":177,"./isTomorrow/index.js":178,"./isTuesday/index.js":179,"./isValid/index.js":180,"./isWednesday/index.js":181,"./isWeekend/index.js":182,"./isWithinInterval/index.js":183,"./isYesterday/index.js":184,"./lastDayOfDecade/index.js":185,"./lastDayOfISOWeek/index.js":186,"./lastDayOfISOWeekYear/index.js":187,"./lastDayOfMonth/index.js":188,"./lastDayOfQuarter/index.js":189,"./lastDayOfWeek/index.js":190,"./lastDayOfYear/index.js":191,"./lightFormat/index.js":192,"./max/index.js":203,"./milliseconds/index.js":204,"./millisecondsToHours/index.js":205,"./millisecondsToMinutes/index.js":206,"./millisecondsToSeconds/index.js":207,"./min/index.js":208,"./minutesToHours/index.js":209,"./minutesToMilliseconds/index.js":210,"./minutesToSeconds/index.js":211,"./monthsToQuarters/index.js":212,"./monthsToYears/index.js":213,"./nextDay/index.js":214,"./nextFriday/index.js":215,"./nextMonday/index.js":216,"./nextSaturday/index.js":217,"./nextSunday/index.js":218,"./nextThursday/index.js":219,"./nextTuesday/index.js":220,"./nextWednesday/index.js":221,"./parse/index.js":223,"./parseISO/index.js":224,"./parseJSON/index.js":225,"./previousDay/index.js":226,"./previousFriday/index.js":227,"./previousMonday/index.js":228,"./previousSaturday/index.js":229,"./previousSunday/index.js":230,"./previousThursday/index.js":231,"./previousTuesday/index.js":232,"./previousWednesday/index.js":233,"./quartersToMonths/index.js":234,"./quartersToYears/index.js":235,"./roundToNearestMinutes/index.js":236,"./secondsToHours/index.js":237,"./secondsToMilliseconds/index.js":238,"./secondsToMinutes/index.js":239,"./set/index.js":240,"./setDate/index.js":241,"./setDay/index.js":242,"./setDayOfYear/index.js":243,"./setHours/index.js":244,"./setISODay/index.js":245,"./setISOWeek/index.js":246,"./setISOWeekYear/index.js":247,"./setMilliseconds/index.js":248,"./setMinutes/index.js":249,"./setMonth/index.js":250,"./setQuarter/index.js":251,"./setSeconds/index.js":252,"./setWeek/index.js":253,"./setWeekYear/index.js":254,"./setYear/index.js":255,"./startOfDay/index.js":256,"./startOfDecade/index.js":257,"./startOfHour/index.js":258,"./startOfISOWeek/index.js":259,"./startOfISOWeekYear/index.js":260,"./startOfMinute/index.js":261,"./startOfMonth/index.js":262,"./startOfQuarter/index.js":263,"./startOfSecond/index.js":264,"./startOfToday/index.js":265,"./startOfTomorrow/index.js":266,"./startOfWeek/index.js":267,"./startOfWeekYear/index.js":268,"./startOfYear/index.js":269,"./startOfYesterday/index.js":270,"./sub/index.js":271,"./subBusinessDays/index.js":272,"./subDays/index.js":273,"./subHours/index.js":274,"./subISOWeekYears/index.js":275,"./subMilliseconds/index.js":276,"./subMinutes/index.js":277,"./subMonths/index.js":278,"./subQuarters/index.js":279,"./subSeconds/index.js":280,"./subWeeks/index.js":281,"./subYears/index.js":282,"./toDate/index.js":283,"./weeksToDays/index.js":284,"./yearsToMonths/index.js":285,"./yearsToQuarters/index.js":286}],141:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -13413,7 +13543,7 @@ function intervalToDuration(_ref) {
   return duration;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../compareAsc/index.js":50,"../differenceInDays/index.js":62,"../differenceInHours/index.js":63,"../differenceInMinutes/index.js":66,"../differenceInMonths/index.js":67,"../differenceInSeconds/index.js":69,"../differenceInYears/index.js":71,"../isValid/index.js":176,"../sub/index.js":267,"../toDate/index.js":279}],138:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../compareAsc/index.js":54,"../differenceInDays/index.js":66,"../differenceInHours/index.js":67,"../differenceInMinutes/index.js":70,"../differenceInMonths/index.js":71,"../differenceInSeconds/index.js":73,"../differenceInYears/index.js":75,"../isValid/index.js":180,"../sub/index.js":271,"../toDate/index.js":283}],142:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -13514,7 +13644,7 @@ function isFormatOptions(opts) {
   return opts !== undefined && !('locale' in opts);
 }
 
-},{"../_lib/requiredArgs/index.js":23}],139:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27}],143:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -13557,7 +13687,7 @@ function isAfter(dirtyDate, dirtyDateToCompare) {
   return date.getTime() > dateToCompare.getTime();
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../toDate/index.js":279}],140:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../toDate/index.js":283}],144:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -13600,7 +13730,7 @@ function isBefore(dirtyDate, dirtyDateToCompare) {
   return date.getTime() < dateToCompare.getTime();
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../toDate/index.js":279}],141:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../toDate/index.js":283}],145:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -13653,7 +13783,7 @@ function isDate(value) {
   return value instanceof Date || typeof value === 'object' && Object.prototype.toString.call(value) === '[object Date]';
 }
 
-},{"../_lib/requiredArgs/index.js":23}],142:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27}],146:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -13699,7 +13829,7 @@ function isEqual(dirtyLeftDate, dirtyRightDate) {
   return dateLeft.getTime() === dateRight.getTime();
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../toDate/index.js":279}],143:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../toDate/index.js":283}],147:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -13740,7 +13870,7 @@ function isExists(year, month, day) {
   return date.getFullYear() === year && date.getMonth() === month && date.getDate() === day;
 }
 
-},{}],144:[function(require,module,exports){
+},{}],148:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -13780,7 +13910,7 @@ function isFirstDayOfMonth(dirtyDate) {
   return (0, _index.default)(dirtyDate).getDate() === 1;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../toDate/index.js":279}],145:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../toDate/index.js":283}],149:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -13820,7 +13950,7 @@ function isFriday(dirtyDate) {
   return (0, _index.default)(dirtyDate).getDay() === 5;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../toDate/index.js":279}],146:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../toDate/index.js":283}],150:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -13864,7 +13994,7 @@ function isFuture(dirtyDate) {
   return (0, _index.default)(dirtyDate).getTime() > Date.now();
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../toDate/index.js":279}],147:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../toDate/index.js":283}],151:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -13909,7 +14039,7 @@ function isLastDayOfMonth(dirtyDate) {
   return (0, _index2.default)(date).getTime() === (0, _index3.default)(date).getTime();
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../endOfDay/index.js":82,"../endOfMonth/index.js":88,"../toDate/index.js":279}],148:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../endOfDay/index.js":86,"../endOfMonth/index.js":92,"../toDate/index.js":283}],152:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -13951,7 +14081,7 @@ function isLeapYear(dirtyDate) {
   return year % 400 === 0 || year % 4 === 0 && year % 100 !== 0;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../toDate/index.js":279}],149:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../toDate/index.js":283}],153:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -14264,7 +14394,7 @@ function isMatch(dateString, formatString, options) {
   return (0, _index2.default)((0, _index.default)(dateString, formatString, new Date(), options));
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../isValid/index.js":176,"../parse/index.js":219}],150:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../isValid/index.js":180,"../parse/index.js":223}],154:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -14304,7 +14434,7 @@ function isMonday(date) {
   return (0, _index.default)(date).getDay() === 1;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../toDate/index.js":279}],151:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../toDate/index.js":283}],155:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -14348,7 +14478,7 @@ function isPast(dirtyDate) {
   return (0, _index.default)(dirtyDate).getTime() < Date.now();
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../toDate/index.js":279}],152:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../toDate/index.js":283}],156:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -14401,7 +14531,7 @@ function isSameDay(dirtyDateLeft, dirtyDateRight) {
   return dateLeftStartOfDay.getTime() === dateRightStartOfDay.getTime();
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../startOfDay/index.js":252}],153:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../startOfDay/index.js":256}],157:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -14449,7 +14579,7 @@ function isSameHour(dirtyDateLeft, dirtyDateRight) {
   return dateLeftStartOfHour.getTime() === dateRightStartOfHour.getTime();
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../startOfHour/index.js":254}],154:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../startOfHour/index.js":258}],158:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -14499,7 +14629,7 @@ function isSameISOWeek(dirtyDateLeft, dirtyDateRight) {
   });
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../isSameWeek/index.js":160}],155:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../isSameWeek/index.js":164}],159:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -14549,7 +14679,7 @@ function isSameISOWeekYear(dirtyDateLeft, dirtyDateRight) {
   return dateLeftStartOfYear.getTime() === dateRightStartOfYear.getTime();
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../startOfISOWeekYear/index.js":256}],156:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../startOfISOWeekYear/index.js":260}],160:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -14603,7 +14733,7 @@ function isSameMinute(dirtyDateLeft, dirtyDateRight) {
   return dateLeftStartOfMinute.getTime() === dateRightStartOfMinute.getTime();
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../startOfMinute/index.js":257}],157:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../startOfMinute/index.js":261}],161:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -14651,7 +14781,7 @@ function isSameMonth(dirtyDateLeft, dirtyDateRight) {
   return dateLeft.getFullYear() === dateRight.getFullYear() && dateLeft.getMonth() === dateRight.getMonth();
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../toDate/index.js":279}],158:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../toDate/index.js":283}],162:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -14699,7 +14829,7 @@ function isSameQuarter(dirtyDateLeft, dirtyDateRight) {
   return dateLeftStartOfQuarter.getTime() === dateRightStartOfQuarter.getTime();
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../startOfQuarter/index.js":259}],159:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../startOfQuarter/index.js":263}],163:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -14761,7 +14891,7 @@ function isSameSecond(dirtyDateLeft, dirtyDateRight) {
   return dateLeftStartOfSecond.getTime() === dateRightStartOfSecond.getTime();
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../startOfSecond/index.js":260}],160:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../startOfSecond/index.js":264}],164:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -14821,7 +14951,7 @@ function isSameWeek(dirtyDateLeft, dirtyDateRight, dirtyOptions) {
   return dateLeftStartOfWeek.getTime() === dateRightStartOfWeek.getTime();
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../startOfWeek/index.js":263}],161:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../startOfWeek/index.js":267}],165:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -14864,7 +14994,7 @@ function isSameYear(dirtyDateLeft, dirtyDateRight) {
   return dateLeft.getFullYear() === dateRight.getFullYear();
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../toDate/index.js":279}],162:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../toDate/index.js":283}],166:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -14904,7 +15034,7 @@ function isSaturday(dirtyDate) {
   return (0, _index.default)(dirtyDate).getDay() === 6;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../toDate/index.js":279}],163:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../toDate/index.js":283}],167:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -14944,7 +15074,7 @@ function isSunday(dirtyDate) {
   return (0, _index.default)(dirtyDate).getDay() === 0;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../toDate/index.js":279}],164:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../toDate/index.js":283}],168:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -14989,7 +15119,7 @@ function isThisHour(dirtyDate) {
   return (0, _index.default)(Date.now(), dirtyDate);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../isSameHour/index.js":153}],165:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../isSameHour/index.js":157}],169:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -15035,7 +15165,7 @@ function isThisISOWeek(dirtyDate) {
   return (0, _index.default)(dirtyDate, Date.now());
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../isSameISOWeek/index.js":154}],166:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../isSameISOWeek/index.js":158}],170:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -15080,7 +15210,7 @@ function isThisMinute(dirtyDate) {
   return (0, _index.default)(Date.now(), dirtyDate);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../isSameMinute/index.js":156}],167:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../isSameMinute/index.js":160}],171:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -15124,7 +15254,7 @@ function isThisMonth(dirtyDate) {
   return (0, _index.default)(Date.now(), dirtyDate);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../isSameMonth/index.js":157}],168:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../isSameMonth/index.js":161}],172:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -15168,7 +15298,7 @@ function isThisQuarter(dirtyDate) {
   return (0, _index.default)(Date.now(), dirtyDate);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../isSameQuarter/index.js":158}],169:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../isSameQuarter/index.js":162}],173:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -15213,7 +15343,7 @@ function isThisSecond(dirtyDate) {
   return (0, _index.default)(Date.now(), dirtyDate);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../isSameSecond/index.js":159}],170:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../isSameSecond/index.js":163}],174:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -15267,7 +15397,7 @@ function isThisWeek(dirtyDate, options) {
   return (0, _index.default)(dirtyDate, Date.now(), options);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../isSameWeek/index.js":160}],171:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../isSameWeek/index.js":164}],175:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -15311,7 +15441,7 @@ function isThisYear(dirtyDate) {
   return (0, _index.default)(dirtyDate, Date.now());
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../isSameYear/index.js":161}],172:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../isSameYear/index.js":165}],176:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -15351,7 +15481,7 @@ function isThursday(dirtyDate) {
   return (0, _index.default)(dirtyDate).getDay() === 4;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../toDate/index.js":279}],173:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../toDate/index.js":283}],177:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -15395,7 +15525,7 @@ function isToday(dirtyDate) {
   return (0, _index.default)(dirtyDate, Date.now());
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../isSameDay/index.js":152}],174:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../isSameDay/index.js":156}],178:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -15441,7 +15571,7 @@ function isTomorrow(dirtyDate) {
   return (0, _index2.default)(dirtyDate, (0, _index.default)(Date.now(), 1));
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../addDays/index.js":36,"../isSameDay/index.js":152}],175:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../addDays/index.js":40,"../isSameDay/index.js":156}],179:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -15481,7 +15611,7 @@ function isTuesday(dirtyDate) {
   return (0, _index.default)(dirtyDate).getDay() === 2;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../toDate/index.js":279}],176:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../toDate/index.js":283}],180:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -15565,7 +15695,7 @@ function isValid(dirtyDate) {
   return !isNaN(Number(date));
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../isDate/index.js":141,"../toDate/index.js":279}],177:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../isDate/index.js":145,"../toDate/index.js":283}],181:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -15605,7 +15735,7 @@ function isWednesday(dirtyDate) {
   return (0, _index.default)(dirtyDate).getDay() === 3;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../toDate/index.js":279}],178:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../toDate/index.js":283}],182:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -15647,7 +15777,7 @@ function isWeekend(dirtyDate) {
   return day === 0 || day === 6;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../toDate/index.js":279}],179:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../toDate/index.js":283}],183:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -15747,7 +15877,7 @@ function isWithinInterval(dirtyDate, interval) {
   return time >= startTime && time <= endTime;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../toDate/index.js":279}],180:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../toDate/index.js":283}],184:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -15793,7 +15923,7 @@ function isYesterday(dirtyDate) {
   return (0, _index.default)(dirtyDate, (0, _index2.default)(Date.now(), 1));
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../isSameDay/index.js":152,"../subDays/index.js":269}],181:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../isSameDay/index.js":156,"../subDays/index.js":273}],185:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -15838,7 +15968,7 @@ function lastDayOfDecade(dirtyDate) {
   return date;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../toDate/index.js":279}],182:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../toDate/index.js":283}],186:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -15883,7 +16013,7 @@ function lastDayOfISOWeek(dirtyDate) {
   });
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../lastDayOfWeek/index.js":186}],183:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../lastDayOfWeek/index.js":190}],187:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -15940,7 +16070,7 @@ function lastDayOfISOWeekYear(dirtyDate) {
   return date;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../getISOWeekYear/index.js":118,"../startOfISOWeek/index.js":255}],184:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../getISOWeekYear/index.js":122,"../startOfISOWeek/index.js":259}],188:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -15985,7 +16115,7 @@ function lastDayOfMonth(dirtyDate) {
   return date;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../toDate/index.js":279}],185:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../toDate/index.js":283}],189:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -16034,7 +16164,7 @@ function lastDayOfQuarter(dirtyDate) {
   return date;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../toDate/index.js":279}],186:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../toDate/index.js":283}],190:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -16101,7 +16231,7 @@ function lastDayOfWeek(dirtyDate, dirtyOptions) {
   return date;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../_lib/toInteger/index.js":33,"../toDate/index.js":279}],187:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../_lib/toInteger/index.js":37,"../toDate/index.js":283}],191:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -16146,7 +16276,7 @@ function lastDayOfYear(dirtyDate) {
   return date;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../toDate/index.js":279}],188:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../toDate/index.js":283}],192:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -16290,7 +16420,7 @@ function cleanEscapedString(input) {
   return matches[1].replace(doubleQuoteRegExp, "'");
 }
 
-},{"../_lib/format/lightFormatters/index.js":14,"../_lib/getTimezoneOffsetInMilliseconds/index.js":16,"../_lib/requiredArgs/index.js":23,"../isValid/index.js":176,"../subMilliseconds/index.js":272,"../toDate/index.js":279}],189:[function(require,module,exports){
+},{"../_lib/format/lightFormatters/index.js":18,"../_lib/getTimezoneOffsetInMilliseconds/index.js":20,"../_lib/requiredArgs/index.js":27,"../isValid/index.js":180,"../subMilliseconds/index.js":276,"../toDate/index.js":283}],193:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -16308,7 +16438,7 @@ function buildFormatLongFn(args) {
   };
 }
 
-},{}],190:[function(require,module,exports){
+},{}],194:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -16340,7 +16470,7 @@ function buildLocalizeFn(args) {
   };
 }
 
-},{}],191:[function(require,module,exports){
+},{}],195:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -16397,7 +16527,7 @@ function findIndex(array, predicate) {
   return undefined;
 }
 
-},{}],192:[function(require,module,exports){
+},{}],196:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -16423,7 +16553,7 @@ function buildMatchPatternFn(args) {
   };
 }
 
-},{}],193:[function(require,module,exports){
+},{}],197:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -16520,7 +16650,7 @@ var formatDistance = function (token, count, options) {
 var _default = formatDistance;
 exports.default = _default;
 
-},{}],194:[function(require,module,exports){
+},{}],198:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -16567,7 +16697,7 @@ var formatLong = {
 var _default = formatLong;
 exports.default = _default;
 
-},{"../../../_lib/buildFormatLongFn/index.js":189}],195:[function(require,module,exports){
+},{"../../../_lib/buildFormatLongFn/index.js":193}],199:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -16590,7 +16720,7 @@ var formatRelative = function (token, _date, _baseDate, _options) {
 var _default = formatRelative;
 exports.default = _default;
 
-},{}],196:[function(require,module,exports){
+},{}],200:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -16749,7 +16879,7 @@ var localize = {
 var _default = localize;
 exports.default = _default;
 
-},{"../../../_lib/buildLocalizeFn/index.js":190}],197:[function(require,module,exports){
+},{"../../../_lib/buildLocalizeFn/index.js":194}],201:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -16861,7 +16991,7 @@ var match = {
 var _default = match;
 exports.default = _default;
 
-},{"../../../_lib/buildMatchFn/index.js":191,"../../../_lib/buildMatchPatternFn/index.js":192}],198:[function(require,module,exports){
+},{"../../../_lib/buildMatchFn/index.js":195,"../../../_lib/buildMatchPatternFn/index.js":196}],202:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -16907,7 +17037,7 @@ var locale = {
 var _default = locale;
 exports.default = _default;
 
-},{"./_lib/formatDistance/index.js":193,"./_lib/formatLong/index.js":194,"./_lib/formatRelative/index.js":195,"./_lib/localize/index.js":196,"./_lib/match/index.js":197}],199:[function(require,module,exports){
+},{"./_lib/formatDistance/index.js":197,"./_lib/formatLong/index.js":198,"./_lib/formatRelative/index.js":199,"./_lib/localize/index.js":200,"./_lib/match/index.js":201}],203:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -16984,7 +17114,7 @@ function max(dirtyDatesArray) {
   return result || new Date(NaN);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../toDate/index.js":279}],200:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../toDate/index.js":283}],204:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -17050,7 +17180,7 @@ function milliseconds(_ref) {
   return Math.round(totalSeconds * 1000);
 }
 
-},{"../_lib/requiredArgs/index.js":23}],201:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27}],205:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -17093,7 +17223,7 @@ function millisecondsToHours(milliseconds) {
   return Math.floor(hours);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../constants/index.js":52}],202:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../constants/index.js":56}],206:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -17136,7 +17266,7 @@ function millisecondsToMinutes(milliseconds) {
   return Math.floor(minutes);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../constants/index.js":52}],203:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../constants/index.js":56}],207:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -17179,7 +17309,7 @@ function millisecondsToSeconds(milliseconds) {
   return Math.floor(seconds);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../constants/index.js":52}],204:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../constants/index.js":56}],208:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -17256,7 +17386,7 @@ function min(dirtyDatesArray) {
   return result || new Date(NaN);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../toDate/index.js":279}],205:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../toDate/index.js":283}],209:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -17299,7 +17429,7 @@ function minutesToHours(minutes) {
   return Math.floor(hours);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../constants/index.js":52}],206:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../constants/index.js":56}],210:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -17336,7 +17466,7 @@ function minutesToMilliseconds(minutes) {
   return Math.floor(minutes * _index2.millisecondsInMinute);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../constants/index.js":52}],207:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../constants/index.js":56}],211:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -17373,7 +17503,7 @@ function minutesToSeconds(minutes) {
   return Math.floor(minutes * _index2.secondsInMinute);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../constants/index.js":52}],208:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../constants/index.js":56}],212:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -17416,7 +17546,7 @@ function monthsToQuarters(months) {
   return Math.floor(quarters);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../constants/index.js":52}],209:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../constants/index.js":56}],213:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -17458,7 +17588,7 @@ function monthsToYears(months) {
   return Math.floor(years);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../constants/index.js":52}],210:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../constants/index.js":56}],214:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -17504,7 +17634,7 @@ function nextDay(date, day) {
   return (0, _index.default)(date, delta);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../addDays/index.js":36,"../getDay/index.js":110}],211:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../addDays/index.js":40,"../getDay/index.js":114}],215:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -17540,7 +17670,7 @@ function nextFriday(date) {
   return (0, _index.default)(date, 5);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../nextDay/index.js":210}],212:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../nextDay/index.js":214}],216:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -17576,7 +17706,7 @@ function nextMonday(date) {
   return (0, _index.default)(date, 1);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../nextDay/index.js":210}],213:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../nextDay/index.js":214}],217:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -17612,7 +17742,7 @@ function nextSaturday(date) {
   return (0, _index.default)(date, 6);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../nextDay/index.js":210}],214:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../nextDay/index.js":214}],218:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -17648,7 +17778,7 @@ function nextSunday(date) {
   return (0, _index.default)(date, 0);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../nextDay/index.js":210}],215:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../nextDay/index.js":214}],219:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -17684,7 +17814,7 @@ function nextThursday(date) {
   return (0, _index.default)(date, 4);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../nextDay/index.js":210}],216:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../nextDay/index.js":214}],220:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -17720,7 +17850,7 @@ function nextTuesday(date) {
   return (0, _index.default)(date, 2);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../nextDay/index.js":210}],217:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../nextDay/index.js":214}],221:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -17756,7 +17886,7 @@ function nextWednesday(date) {
   return (0, _index.default)(date, 3);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../nextDay/index.js":210}],218:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../nextDay/index.js":214}],222:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -19278,7 +19408,7 @@ var parsers = {
 var _default = parsers;
 exports.default = _default;
 
-},{"../../../_lib/getUTCWeekYear/index.js":21,"../../../_lib/setUTCDay/index.js":25,"../../../_lib/setUTCISODay/index.js":26,"../../../_lib/setUTCISOWeek/index.js":27,"../../../_lib/setUTCWeek/index.js":28,"../../../_lib/startOfUTCISOWeek/index.js":29,"../../../_lib/startOfUTCWeek/index.js":31}],219:[function(require,module,exports){
+},{"../../../_lib/getUTCWeekYear/index.js":25,"../../../_lib/setUTCDay/index.js":29,"../../../_lib/setUTCISODay/index.js":30,"../../../_lib/setUTCISOWeek/index.js":31,"../../../_lib/setUTCWeek/index.js":32,"../../../_lib/startOfUTCISOWeek/index.js":33,"../../../_lib/startOfUTCWeek/index.js":35}],223:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -19850,7 +19980,7 @@ function cleanEscapedString(input) {
   return input.match(escapedStringRegExp)[1].replace(doubleQuoteRegExp, "'");
 }
 
-},{"../_lib/assign/index.js":11,"../_lib/format/longFormatters/index.js":15,"../_lib/getTimezoneOffsetInMilliseconds/index.js":16,"../_lib/protectedTokens/index.js":22,"../_lib/requiredArgs/index.js":23,"../_lib/toInteger/index.js":33,"../locale/en-US/index.js":198,"../subMilliseconds/index.js":272,"../toDate/index.js":279,"./_lib/parsers/index.js":218}],220:[function(require,module,exports){
+},{"../_lib/assign/index.js":15,"../_lib/format/longFormatters/index.js":19,"../_lib/getTimezoneOffsetInMilliseconds/index.js":20,"../_lib/protectedTokens/index.js":26,"../_lib/requiredArgs/index.js":27,"../_lib/toInteger/index.js":37,"../locale/en-US/index.js":202,"../subMilliseconds/index.js":276,"../toDate/index.js":283,"./_lib/parsers/index.js":222}],224:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -20154,7 +20284,7 @@ function validateTimezone(_hours, minutes) {
   return minutes >= 0 && minutes <= 59;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../_lib/toInteger/index.js":33,"../constants/index.js":52}],221:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../_lib/toInteger/index.js":37,"../constants/index.js":56}],225:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -20219,7 +20349,7 @@ function parseJSON(argument) {
   return (0, _index.default)(argument);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../toDate/index.js":279}],222:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../toDate/index.js":283}],226:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -20265,7 +20395,7 @@ function previousDay(date, day) {
   return (0, _index3.default)(date, delta);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../getDay/index.js":110,"../subDays/index.js":269}],223:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../getDay/index.js":114,"../subDays/index.js":273}],227:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -20301,7 +20431,7 @@ function previousFriday(date) {
   return (0, _index2.default)(date, 5);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../previousDay/index.js":222}],224:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../previousDay/index.js":226}],228:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -20337,7 +20467,7 @@ function previousMonday(date) {
   return (0, _index2.default)(date, 1);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../previousDay/index.js":222}],225:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../previousDay/index.js":226}],229:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -20373,7 +20503,7 @@ function previousSaturday(date) {
   return (0, _index2.default)(date, 6);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../previousDay/index.js":222}],226:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../previousDay/index.js":226}],230:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -20409,7 +20539,7 @@ function previousSunday(date) {
   return (0, _index2.default)(date, 0);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../previousDay/index.js":222}],227:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../previousDay/index.js":226}],231:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -20445,7 +20575,7 @@ function previousThursday(date) {
   return (0, _index2.default)(date, 4);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../previousDay/index.js":222}],228:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../previousDay/index.js":226}],232:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -20481,7 +20611,7 @@ function previousTuesday(date) {
   return (0, _index2.default)(date, 2);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../previousDay/index.js":222}],229:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../previousDay/index.js":226}],233:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -20517,7 +20647,7 @@ function previousWednesday(date) {
   return (0, _index2.default)(date, 3);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../previousDay/index.js":222}],230:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../previousDay/index.js":226}],234:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -20554,7 +20684,7 @@ function quartersToMonths(quarters) {
   return Math.floor(quarters * _index2.monthsInQuarter);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../constants/index.js":52}],231:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../constants/index.js":56}],235:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -20597,7 +20727,7 @@ function quartersToYears(quarters) {
   return Math.floor(years);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../constants/index.js":52}],232:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../constants/index.js":56}],236:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -20663,7 +20793,7 @@ function roundToNearestMinutes(dirtyDate, options) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate(), date.getHours(), roundedMinutes + addedMinutes);
 }
 
-},{"../_lib/toInteger/index.js":33,"../toDate/index.js":279}],233:[function(require,module,exports){
+},{"../_lib/toInteger/index.js":37,"../toDate/index.js":283}],237:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -20706,7 +20836,7 @@ function secondsToHours(seconds) {
   return Math.floor(hours);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../constants/index.js":52}],234:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../constants/index.js":56}],238:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -20743,7 +20873,7 @@ function secondsToMilliseconds(seconds) {
   return seconds * _index2.millisecondsInSecond;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../constants/index.js":52}],235:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../constants/index.js":56}],239:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -20786,7 +20916,7 @@ function secondsToMinutes(seconds) {
   return Math.floor(minutes);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../constants/index.js":52}],236:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../constants/index.js":56}],240:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -20886,7 +21016,7 @@ function set(dirtyDate, values) {
   return date;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../_lib/toInteger/index.js":33,"../setMonth/index.js":246,"../toDate/index.js":279}],237:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../_lib/toInteger/index.js":37,"../setMonth/index.js":250,"../toDate/index.js":283}],241:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -20932,7 +21062,7 @@ function setDate(dirtyDate, dirtyDayOfMonth) {
   return date;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../_lib/toInteger/index.js":33,"../toDate/index.js":279}],238:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../_lib/toInteger/index.js":37,"../toDate/index.js":283}],242:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -21003,7 +21133,7 @@ function setDay(dirtyDate, dirtyDay, dirtyOptions) {
   return (0, _index.default)(date, diff);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../_lib/toInteger/index.js":33,"../addDays/index.js":36,"../toDate/index.js":279}],239:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../_lib/toInteger/index.js":37,"../addDays/index.js":40,"../toDate/index.js":283}],243:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -21050,7 +21180,7 @@ function setDayOfYear(dirtyDate, dirtyDayOfYear) {
   return date;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../_lib/toInteger/index.js":33,"../toDate/index.js":279}],240:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../_lib/toInteger/index.js":37,"../toDate/index.js":283}],244:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -21096,7 +21226,7 @@ function setHours(dirtyDate, dirtyHours) {
   return date;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../_lib/toInteger/index.js":33,"../toDate/index.js":279}],241:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../_lib/toInteger/index.js":37,"../toDate/index.js":283}],245:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -21149,7 +21279,7 @@ function setISODay(dirtyDate, dirtyDay) {
   return (0, _index3.default)(date, diff);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../_lib/toInteger/index.js":33,"../addDays/index.js":36,"../getISODay/index.js":116,"../toDate/index.js":279}],242:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../_lib/toInteger/index.js":37,"../addDays/index.js":40,"../getISODay/index.js":120,"../toDate/index.js":283}],246:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -21200,7 +21330,7 @@ function setISOWeek(dirtyDate, dirtyISOWeek) {
   return date;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../_lib/toInteger/index.js":33,"../getISOWeek/index.js":117,"../toDate/index.js":279}],243:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../_lib/toInteger/index.js":37,"../getISOWeek/index.js":121,"../toDate/index.js":283}],247:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -21263,7 +21393,7 @@ function setISOWeekYear(dirtyDate, dirtyISOWeekYear) {
   return date;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../_lib/toInteger/index.js":33,"../differenceInCalendarDays/index.js":55,"../startOfISOWeekYear/index.js":256,"../toDate/index.js":279}],244:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../_lib/toInteger/index.js":37,"../differenceInCalendarDays/index.js":59,"../startOfISOWeekYear/index.js":260,"../toDate/index.js":283}],248:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -21309,7 +21439,7 @@ function setMilliseconds(dirtyDate, dirtyMilliseconds) {
   return date;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../_lib/toInteger/index.js":33,"../toDate/index.js":279}],245:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../_lib/toInteger/index.js":37,"../toDate/index.js":283}],249:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -21355,7 +21485,7 @@ function setMinutes(dirtyDate, dirtyMinutes) {
   return date;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../_lib/toInteger/index.js":33,"../toDate/index.js":279}],246:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../_lib/toInteger/index.js":37,"../toDate/index.js":283}],250:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -21411,7 +21541,7 @@ function setMonth(dirtyDate, dirtyMonth) {
   return date;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../_lib/toInteger/index.js":33,"../getDaysInMonth/index.js":112,"../toDate/index.js":279}],247:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../_lib/toInteger/index.js":37,"../getDaysInMonth/index.js":116,"../toDate/index.js":283}],251:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -21460,7 +21590,7 @@ function setQuarter(dirtyDate, dirtyQuarter) {
   return (0, _index3.default)(date, date.getMonth() + diff * 3);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../_lib/toInteger/index.js":33,"../setMonth/index.js":246,"../toDate/index.js":279}],248:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../_lib/toInteger/index.js":37,"../setMonth/index.js":250,"../toDate/index.js":283}],252:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -21506,7 +21636,7 @@ function setSeconds(dirtyDate, dirtySeconds) {
   return date;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../_lib/toInteger/index.js":33,"../toDate/index.js":279}],249:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../_lib/toInteger/index.js":37,"../toDate/index.js":283}],253:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -21577,7 +21707,7 @@ function setWeek(dirtyDate, dirtyWeek, options) {
   return date;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../_lib/toInteger/index.js":33,"../getWeek/index.js":128,"../toDate/index.js":279}],250:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../_lib/toInteger/index.js":37,"../getWeek/index.js":132,"../toDate/index.js":283}],254:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -21660,7 +21790,7 @@ function setWeekYear(dirtyDate, dirtyWeekYear) {
   return date;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../_lib/toInteger/index.js":33,"../differenceInCalendarDays/index.js":55,"../startOfWeekYear/index.js":264,"../toDate/index.js":279}],251:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../_lib/toInteger/index.js":37,"../differenceInCalendarDays/index.js":59,"../startOfWeekYear/index.js":268,"../toDate/index.js":283}],255:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -21711,7 +21841,7 @@ function setYear(dirtyDate, dirtyYear) {
   return date;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../_lib/toInteger/index.js":33,"../toDate/index.js":279}],252:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../_lib/toInteger/index.js":37,"../toDate/index.js":283}],256:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -21754,7 +21884,7 @@ function startOfDay(dirtyDate) {
   return date;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../toDate/index.js":279}],253:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../toDate/index.js":283}],257:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -21799,7 +21929,7 @@ function startOfDecade(dirtyDate) {
   return date;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../toDate/index.js":279}],254:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../toDate/index.js":283}],258:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -21842,7 +21972,7 @@ function startOfHour(dirtyDate) {
   return date;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../toDate/index.js":279}],255:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../toDate/index.js":283}],259:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -21887,7 +22017,7 @@ function startOfISOWeek(dirtyDate) {
   });
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../startOfWeek/index.js":263}],256:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../startOfWeek/index.js":267}],260:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -21938,7 +22068,7 @@ function startOfISOWeekYear(dirtyDate) {
   return date;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../getISOWeekYear/index.js":118,"../startOfISOWeek/index.js":255}],257:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../getISOWeekYear/index.js":122,"../startOfISOWeek/index.js":259}],261:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -21981,7 +22111,7 @@ function startOfMinute(dirtyDate) {
   return date;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../toDate/index.js":279}],258:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../toDate/index.js":283}],262:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -22025,7 +22155,7 @@ function startOfMonth(dirtyDate) {
   return date;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../toDate/index.js":279}],259:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../toDate/index.js":283}],263:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -22071,7 +22201,7 @@ function startOfQuarter(dirtyDate) {
   return date;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../toDate/index.js":279}],260:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../toDate/index.js":283}],264:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -22114,7 +22244,7 @@ function startOfSecond(dirtyDate) {
   return date;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../toDate/index.js":279}],261:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../toDate/index.js":283}],265:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -22153,7 +22283,7 @@ function startOfToday() {
   return (0, _index.default)(Date.now());
 }
 
-},{"../startOfDay/index.js":252}],262:[function(require,module,exports){
+},{"../startOfDay/index.js":256}],266:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -22195,7 +22325,7 @@ function startOfTomorrow() {
   return date;
 }
 
-},{}],263:[function(require,module,exports){
+},{}],267:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -22262,7 +22392,7 @@ function startOfWeek(dirtyDate, dirtyOptions) {
   return date;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../_lib/toInteger/index.js":33,"../toDate/index.js":279}],264:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../_lib/toInteger/index.js":37,"../toDate/index.js":283}],268:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -22338,7 +22468,7 @@ function startOfWeekYear(dirtyDate, dirtyOptions) {
   return date;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../_lib/toInteger/index.js":33,"../getWeekYear/index.js":130,"../startOfWeek/index.js":263}],265:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../_lib/toInteger/index.js":37,"../getWeekYear/index.js":134,"../startOfWeek/index.js":267}],269:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -22383,7 +22513,7 @@ function startOfYear(dirtyDate) {
   return date;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../toDate/index.js":279}],266:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../toDate/index.js":283}],270:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -22425,7 +22555,7 @@ function startOfYesterday() {
   return date;
 }
 
-},{}],267:[function(require,module,exports){
+},{}],271:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -22504,7 +22634,7 @@ function sub(date, duration) {
   return finalDate;
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../_lib/toInteger/index.js":33,"../subDays/index.js":269,"../subMonths/index.js":274}],268:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../_lib/toInteger/index.js":37,"../subDays/index.js":273,"../subMonths/index.js":278}],272:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -22544,7 +22674,7 @@ function subBusinessDays(dirtyDate, dirtyAmount) {
   return (0, _index.default)(dirtyDate, -amount);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../_lib/toInteger/index.js":33,"../addBusinessDays/index.js":35}],269:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../_lib/toInteger/index.js":37,"../addBusinessDays/index.js":39}],273:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -22588,7 +22718,7 @@ function subDays(dirtyDate, dirtyAmount) {
   return (0, _index2.default)(dirtyDate, -amount);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../_lib/toInteger/index.js":33,"../addDays/index.js":36}],270:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../_lib/toInteger/index.js":37,"../addDays/index.js":40}],274:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -22632,7 +22762,7 @@ function subHours(dirtyDate, dirtyAmount) {
   return (0, _index2.default)(dirtyDate, -amount);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../_lib/toInteger/index.js":33,"../addHours/index.js":37}],271:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../_lib/toInteger/index.js":37,"../addHours/index.js":41}],275:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -22683,7 +22813,7 @@ function subISOWeekYears(dirtyDate, dirtyAmount) {
   return (0, _index2.default)(dirtyDate, -amount);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../_lib/toInteger/index.js":33,"../addISOWeekYears/index.js":38}],272:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../_lib/toInteger/index.js":37,"../addISOWeekYears/index.js":42}],276:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -22727,7 +22857,7 @@ function subMilliseconds(dirtyDate, dirtyAmount) {
   return (0, _index2.default)(dirtyDate, -amount);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../_lib/toInteger/index.js":33,"../addMilliseconds/index.js":39}],273:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../_lib/toInteger/index.js":37,"../addMilliseconds/index.js":43}],277:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -22771,7 +22901,7 @@ function subMinutes(dirtyDate, dirtyAmount) {
   return (0, _index2.default)(dirtyDate, -amount);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../_lib/toInteger/index.js":33,"../addMinutes/index.js":40}],274:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../_lib/toInteger/index.js":37,"../addMinutes/index.js":44}],278:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -22815,7 +22945,7 @@ function subMonths(dirtyDate, dirtyAmount) {
   return (0, _index2.default)(dirtyDate, -amount);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../_lib/toInteger/index.js":33,"../addMonths/index.js":41}],275:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../_lib/toInteger/index.js":37,"../addMonths/index.js":45}],279:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -22859,7 +22989,7 @@ function subQuarters(dirtyDate, dirtyAmount) {
   return (0, _index2.default)(dirtyDate, -amount);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../_lib/toInteger/index.js":33,"../addQuarters/index.js":42}],276:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../_lib/toInteger/index.js":37,"../addQuarters/index.js":46}],280:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -22903,7 +23033,7 @@ function subSeconds(dirtyDate, dirtyAmount) {
   return (0, _index2.default)(dirtyDate, -amount);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../_lib/toInteger/index.js":33,"../addSeconds/index.js":43}],277:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../_lib/toInteger/index.js":37,"../addSeconds/index.js":47}],281:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -22947,7 +23077,7 @@ function subWeeks(dirtyDate, dirtyAmount) {
   return (0, _index2.default)(dirtyDate, -amount);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../_lib/toInteger/index.js":33,"../addWeeks/index.js":44}],278:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../_lib/toInteger/index.js":37,"../addWeeks/index.js":48}],282:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -22991,7 +23121,7 @@ function subYears(dirtyDate, dirtyAmount) {
   return (0, _index2.default)(dirtyDate, -amount);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../_lib/toInteger/index.js":33,"../addYears/index.js":45}],279:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../_lib/toInteger/index.js":37,"../addYears/index.js":49}],283:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -23054,7 +23184,7 @@ function toDate(argument) {
   }
 }
 
-},{"../_lib/requiredArgs/index.js":23}],280:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27}],284:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -23091,7 +23221,7 @@ function weeksToDays(weeks) {
   return Math.floor(weeks * _index2.daysInWeek);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../constants/index.js":52}],281:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../constants/index.js":56}],285:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -23128,7 +23258,7 @@ function yearsToMonths(years) {
   return Math.floor(years * _index2.monthsInYear);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../constants/index.js":52}],282:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../constants/index.js":56}],286:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -23165,7 +23295,7 @@ function yearsToQuarters(years) {
   return Math.floor(years * _index2.quartersInYear);
 }
 
-},{"../_lib/requiredArgs/index.js":23,"../constants/index.js":52}],283:[function(require,module,exports){
+},{"../_lib/requiredArgs/index.js":27,"../constants/index.js":56}],287:[function(require,module,exports){
 'use strict';
 
 var GetIntrinsic = require('get-intrinsic');
@@ -23182,7 +23312,7 @@ if ($gOPD) {
 
 module.exports = $gOPD;
 
-},{"get-intrinsic":288}],284:[function(require,module,exports){
+},{"get-intrinsic":292}],288:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -23681,7 +23811,7 @@ function eventTargetAgnosticAddListener(emitter, name, listener, flags) {
   }
 }
 
-},{}],285:[function(require,module,exports){
+},{}],289:[function(require,module,exports){
 'use strict';
 
 var isCallable = require('is-callable');
@@ -23745,7 +23875,7 @@ var forEach = function forEach(list, iterator, thisArg) {
 
 module.exports = forEach;
 
-},{"is-callable":297}],286:[function(require,module,exports){
+},{"is-callable":301}],290:[function(require,module,exports){
 'use strict';
 
 /* eslint no-invalid-this: 1 */
@@ -23799,14 +23929,14 @@ module.exports = function bind(that) {
     return bound;
 };
 
-},{}],287:[function(require,module,exports){
+},{}],291:[function(require,module,exports){
 'use strict';
 
 var implementation = require('./implementation');
 
 module.exports = Function.prototype.bind || implementation;
 
-},{"./implementation":286}],288:[function(require,module,exports){
+},{"./implementation":290}],292:[function(require,module,exports){
 'use strict';
 
 var undefined;
@@ -24142,7 +24272,7 @@ module.exports = function GetIntrinsic(name, allowMissing) {
 	return value;
 };
 
-},{"function-bind":287,"has":292,"has-symbols":289}],289:[function(require,module,exports){
+},{"function-bind":291,"has":296,"has-symbols":293}],293:[function(require,module,exports){
 'use strict';
 
 var origSymbol = typeof Symbol !== 'undefined' && Symbol;
@@ -24157,7 +24287,7 @@ module.exports = function hasNativeSymbols() {
 	return hasSymbolSham();
 };
 
-},{"./shams":290}],290:[function(require,module,exports){
+},{"./shams":294}],294:[function(require,module,exports){
 'use strict';
 
 /* eslint complexity: [2, 18], max-statements: [2, 33] */
@@ -24201,7 +24331,7 @@ module.exports = function hasSymbols() {
 	return true;
 };
 
-},{}],291:[function(require,module,exports){
+},{}],295:[function(require,module,exports){
 'use strict';
 
 var hasSymbols = require('has-symbols/shams');
@@ -24210,14 +24340,14 @@ module.exports = function hasToStringTagShams() {
 	return hasSymbols() && !!Symbol.toStringTag;
 };
 
-},{"has-symbols/shams":290}],292:[function(require,module,exports){
+},{"has-symbols/shams":294}],296:[function(require,module,exports){
 'use strict';
 
 var bind = require('function-bind');
 
 module.exports = bind.call(Function.call, Object.prototype.hasOwnProperty);
 
-},{"function-bind":287}],293:[function(require,module,exports){
+},{"function-bind":291}],297:[function(require,module,exports){
 /*! ieee754. BSD-3-Clause License. Feross Aboukhadijeh <https://feross.org/opensource> */
 exports.read = function (buffer, offset, isLE, mLen, nBytes) {
   var e, m
@@ -24304,7 +24434,7 @@ exports.write = function (buffer, value, offset, isLE, mLen, nBytes) {
   buffer[offset + i - d] |= s * 128
 }
 
-},{}],294:[function(require,module,exports){
+},{}],298:[function(require,module,exports){
 if (typeof Object.create === 'function') {
   // implementation from standard node.js 'util' module
   module.exports = function inherits(ctor, superCtor) {
@@ -24333,7 +24463,7 @@ if (typeof Object.create === 'function') {
   }
 }
 
-},{}],295:[function(require,module,exports){
+},{}],299:[function(require,module,exports){
 'use strict';
 
 var hasToStringTag = require('has-tostringtag/shams')();
@@ -24368,7 +24498,7 @@ isStandardArguments.isLegacyArguments = isLegacyArguments; // for tests
 
 module.exports = supportsStandardArguments ? isStandardArguments : isLegacyArguments;
 
-},{"call-bind/callBound":8,"has-tostringtag/shams":291}],296:[function(require,module,exports){
+},{"call-bind/callBound":12,"has-tostringtag/shams":295}],300:[function(require,module,exports){
 /*!
  * Determine if an object is a Buffer
  *
@@ -24391,7 +24521,7 @@ function isSlowBuffer (obj) {
   return typeof obj.readFloatLE === 'function' && typeof obj.slice === 'function' && isBuffer(obj.slice(0, 0))
 }
 
-},{}],297:[function(require,module,exports){
+},{}],301:[function(require,module,exports){
 'use strict';
 
 var fnToStr = Function.prototype.toString;
@@ -24467,7 +24597,7 @@ module.exports = reflectApply
 		return strClass === fnClass || strClass === genClass;
 	};
 
-},{}],298:[function(require,module,exports){
+},{}],302:[function(require,module,exports){
 'use strict';
 
 var toStr = Object.prototype.toString;
@@ -24507,7 +24637,7 @@ module.exports = function isGeneratorFunction(fn) {
 	return getProto(fn) === GeneratorFunction;
 };
 
-},{"has-tostringtag/shams":291}],299:[function(require,module,exports){
+},{"has-tostringtag/shams":295}],303:[function(require,module,exports){
 (function (global){(function (){
 'use strict';
 
@@ -24571,7 +24701,7 @@ module.exports = function isTypedArray(value) {
 };
 
 }).call(this)}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"available-typed-arrays":4,"call-bind/callBound":8,"es-abstract/helpers/getOwnPropertyDescriptor":283,"for-each":285,"has-tostringtag/shams":291}],300:[function(require,module,exports){
+},{"available-typed-arrays":8,"call-bind/callBound":12,"es-abstract/helpers/getOwnPropertyDescriptor":287,"for-each":289,"has-tostringtag/shams":295}],304:[function(require,module,exports){
 (function (process){(function (){
 'use strict'
 
@@ -25043,7 +25173,7 @@ function Entry (key, value, length, now, maxAge) {
 }
 
 }).call(this)}).call(this,require('_process'))
-},{"_process":303,"pseudomap":304,"util":333,"yallist":335}],301:[function(require,module,exports){
+},{"_process":307,"pseudomap":308,"util":337,"yallist":339}],305:[function(require,module,exports){
 (function (global, factory) {
   typeof exports === 'object' && typeof module !== 'undefined' ? module.exports = factory() :
   typeof define === 'function' && define.amd ? define(factory) :
@@ -25817,7 +25947,7 @@ function Entry (key, value, length, now, maxAge) {
 
 })));
 
-},{}],302:[function(require,module,exports){
+},{}],306:[function(require,module,exports){
 var reqwest = require('reqwest'),
     qs = require('qs'),
     through = require('through');
@@ -26070,7 +26200,7 @@ var osmStream = (function osmMinutely() {
 
 module.exports = osmStream;
 
-},{"qs":306,"reqwest":311,"through":329}],303:[function(require,module,exports){
+},{"qs":310,"reqwest":315,"through":333}],307:[function(require,module,exports){
 // shim for using process in browser
 var process = module.exports = {};
 
@@ -26256,7 +26386,7 @@ process.chdir = function (dir) {
 };
 process.umask = function() { return 0; };
 
-},{}],304:[function(require,module,exports){
+},{}],308:[function(require,module,exports){
 (function (process){(function (){
 if (process.env.npm_package_name === 'pseudomap' &&
     process.env.npm_lifecycle_script === 'test')
@@ -26269,7 +26399,7 @@ if (typeof Map === 'function' && !process.env.TEST_PSEUDOMAP) {
 }
 
 }).call(this)}).call(this,require('_process'))
-},{"./pseudomap":305,"_process":303}],305:[function(require,module,exports){
+},{"./pseudomap":309,"_process":307}],309:[function(require,module,exports){
 var hasOwnProperty = Object.prototype.hasOwnProperty
 
 module.exports = PseudoMap
@@ -26384,10 +26514,10 @@ function set (data, k, v) {
   data[key] = new Entry(k, v, key)
 }
 
-},{}],306:[function(require,module,exports){
+},{}],310:[function(require,module,exports){
 module.exports = require('./lib');
 
-},{"./lib":307}],307:[function(require,module,exports){
+},{"./lib":311}],311:[function(require,module,exports){
 // Load modules
 
 var Stringify = require('./stringify');
@@ -26404,7 +26534,7 @@ module.exports = {
     parse: Parse
 };
 
-},{"./parse":308,"./stringify":309}],308:[function(require,module,exports){
+},{"./parse":312,"./stringify":313}],312:[function(require,module,exports){
 // Load modules
 
 var Utils = require('./utils');
@@ -26557,7 +26687,7 @@ module.exports = function (str, depth) {
 
 
 
-},{"./utils":310}],309:[function(require,module,exports){
+},{"./utils":314}],313:[function(require,module,exports){
 (function (Buffer){(function (){
 // Load modules
 
@@ -26613,7 +26743,7 @@ module.exports = function (obj) {
 };
 
 }).call(this)}).call(this,{"isBuffer":require("../../is-buffer/index.js")})
-},{"../../is-buffer/index.js":296}],310:[function(require,module,exports){
+},{"../../is-buffer/index.js":300}],314:[function(require,module,exports){
 (function (Buffer){(function (){
 // Load modules
 
@@ -26748,7 +26878,7 @@ exports.compact = function (obj) {
 };
 
 }).call(this)}).call(this,{"isBuffer":require("../../is-buffer/index.js")})
-},{"../../is-buffer/index.js":296}],311:[function(require,module,exports){
+},{"../../is-buffer/index.js":300}],315:[function(require,module,exports){
 /*!
   * Reqwest! A general purpose XHR connection manager
   * (c) Dustin Diaz 2013
@@ -27308,7 +27438,7 @@ exports.compact = function (obj) {
   return reqwest
 });
 
-},{}],312:[function(require,module,exports){
+},{}],316:[function(require,module,exports){
 /*! safe-buffer. MIT License. Feross Aboukhadijeh <https://feross.org/opensource> */
 /* eslint-disable node/no-deprecated-api */
 var buffer = require('buffer')
@@ -27375,7 +27505,7 @@ SafeBuffer.allocUnsafeSlow = function (size) {
   return buffer.SlowBuffer(size)
 }
 
-},{"buffer":7}],313:[function(require,module,exports){
+},{"buffer":11}],317:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -27506,7 +27636,7 @@ Stream.prototype.pipe = function(dest, options) {
   return dest;
 };
 
-},{"events":284,"inherits":294,"readable-stream/lib/_stream_duplex.js":315,"readable-stream/lib/_stream_passthrough.js":316,"readable-stream/lib/_stream_readable.js":317,"readable-stream/lib/_stream_transform.js":318,"readable-stream/lib/_stream_writable.js":319,"readable-stream/lib/internal/streams/end-of-stream.js":323,"readable-stream/lib/internal/streams/pipeline.js":325}],314:[function(require,module,exports){
+},{"events":288,"inherits":298,"readable-stream/lib/_stream_duplex.js":319,"readable-stream/lib/_stream_passthrough.js":320,"readable-stream/lib/_stream_readable.js":321,"readable-stream/lib/_stream_transform.js":322,"readable-stream/lib/_stream_writable.js":323,"readable-stream/lib/internal/streams/end-of-stream.js":327,"readable-stream/lib/internal/streams/pipeline.js":329}],318:[function(require,module,exports){
 'use strict';
 
 function _inheritsLoose(subClass, superClass) { subClass.prototype = Object.create(superClass.prototype); subClass.prototype.constructor = subClass; subClass.__proto__ = superClass; }
@@ -27635,7 +27765,7 @@ createErrorType('ERR_UNKNOWN_ENCODING', function (arg) {
 createErrorType('ERR_STREAM_UNSHIFT_AFTER_END_EVENT', 'stream.unshift() after end event');
 module.exports.codes = codes;
 
-},{}],315:[function(require,module,exports){
+},{}],319:[function(require,module,exports){
 (function (process){(function (){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -27777,7 +27907,7 @@ Object.defineProperty(Duplex.prototype, 'destroyed', {
   }
 });
 }).call(this)}).call(this,require('_process'))
-},{"./_stream_readable":317,"./_stream_writable":319,"_process":303,"inherits":294}],316:[function(require,module,exports){
+},{"./_stream_readable":321,"./_stream_writable":323,"_process":307,"inherits":298}],320:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -27817,7 +27947,7 @@ function PassThrough(options) {
 PassThrough.prototype._transform = function (chunk, encoding, cb) {
   cb(null, chunk);
 };
-},{"./_stream_transform":318,"inherits":294}],317:[function(require,module,exports){
+},{"./_stream_transform":322,"inherits":298}],321:[function(require,module,exports){
 (function (process,global){(function (){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -28944,7 +29074,7 @@ function indexOf(xs, x) {
   return -1;
 }
 }).call(this)}).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"../errors":314,"./_stream_duplex":315,"./internal/streams/async_iterator":320,"./internal/streams/buffer_list":321,"./internal/streams/destroy":322,"./internal/streams/from":324,"./internal/streams/state":326,"./internal/streams/stream":327,"_process":303,"buffer":7,"events":284,"inherits":294,"string_decoder/":328,"util":6}],318:[function(require,module,exports){
+},{"../errors":318,"./_stream_duplex":319,"./internal/streams/async_iterator":324,"./internal/streams/buffer_list":325,"./internal/streams/destroy":326,"./internal/streams/from":328,"./internal/streams/state":330,"./internal/streams/stream":331,"_process":307,"buffer":11,"events":288,"inherits":298,"string_decoder/":332,"util":10}],322:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -29146,7 +29276,7 @@ function done(stream, er, data) {
   if (stream._transformState.transforming) throw new ERR_TRANSFORM_ALREADY_TRANSFORMING();
   return stream.push(null);
 }
-},{"../errors":314,"./_stream_duplex":315,"inherits":294}],319:[function(require,module,exports){
+},{"../errors":318,"./_stream_duplex":319,"inherits":298}],323:[function(require,module,exports){
 (function (process,global){(function (){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -29846,7 +29976,7 @@ Writable.prototype._destroy = function (err, cb) {
   cb(err);
 };
 }).call(this)}).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"../errors":314,"./_stream_duplex":315,"./internal/streams/destroy":322,"./internal/streams/state":326,"./internal/streams/stream":327,"_process":303,"buffer":7,"inherits":294,"util-deprecate":330}],320:[function(require,module,exports){
+},{"../errors":318,"./_stream_duplex":319,"./internal/streams/destroy":326,"./internal/streams/state":330,"./internal/streams/stream":331,"_process":307,"buffer":11,"inherits":298,"util-deprecate":334}],324:[function(require,module,exports){
 (function (process){(function (){
 'use strict';
 
@@ -30056,7 +30186,7 @@ var createReadableStreamAsyncIterator = function createReadableStreamAsyncIterat
 
 module.exports = createReadableStreamAsyncIterator;
 }).call(this)}).call(this,require('_process'))
-},{"./end-of-stream":323,"_process":303}],321:[function(require,module,exports){
+},{"./end-of-stream":327,"_process":307}],325:[function(require,module,exports){
 'use strict';
 
 function ownKeys(object, enumerableOnly) { var keys = Object.keys(object); if (Object.getOwnPropertySymbols) { var symbols = Object.getOwnPropertySymbols(object); if (enumerableOnly) symbols = symbols.filter(function (sym) { return Object.getOwnPropertyDescriptor(object, sym).enumerable; }); keys.push.apply(keys, symbols); } return keys; }
@@ -30267,7 +30397,7 @@ function () {
 
   return BufferList;
 }();
-},{"buffer":7,"util":6}],322:[function(require,module,exports){
+},{"buffer":11,"util":10}],326:[function(require,module,exports){
 (function (process){(function (){
 'use strict'; // undocumented cb() API, needed for core, not for public API
 
@@ -30375,7 +30505,7 @@ module.exports = {
   errorOrDestroy: errorOrDestroy
 };
 }).call(this)}).call(this,require('_process'))
-},{"_process":303}],323:[function(require,module,exports){
+},{"_process":307}],327:[function(require,module,exports){
 // Ported from https://github.com/mafintosh/end-of-stream with
 // permission from the author, Mathias Buus (@mafintosh).
 'use strict';
@@ -30480,12 +30610,12 @@ function eos(stream, opts, callback) {
 }
 
 module.exports = eos;
-},{"../../../errors":314}],324:[function(require,module,exports){
+},{"../../../errors":318}],328:[function(require,module,exports){
 module.exports = function () {
   throw new Error('Readable.from is not available in the browser')
 };
 
-},{}],325:[function(require,module,exports){
+},{}],329:[function(require,module,exports){
 // Ported from https://github.com/mafintosh/pump with
 // permission from the author, Mathias Buus (@mafintosh).
 'use strict';
@@ -30583,7 +30713,7 @@ function pipeline() {
 }
 
 module.exports = pipeline;
-},{"../../../errors":314,"./end-of-stream":323}],326:[function(require,module,exports){
+},{"../../../errors":318,"./end-of-stream":327}],330:[function(require,module,exports){
 'use strict';
 
 var ERR_INVALID_OPT_VALUE = require('../../../errors').codes.ERR_INVALID_OPT_VALUE;
@@ -30611,10 +30741,10 @@ function getHighWaterMark(state, options, duplexKey, isDuplex) {
 module.exports = {
   getHighWaterMark: getHighWaterMark
 };
-},{"../../../errors":314}],327:[function(require,module,exports){
+},{"../../../errors":318}],331:[function(require,module,exports){
 module.exports = require('events').EventEmitter;
 
-},{"events":284}],328:[function(require,module,exports){
+},{"events":288}],332:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -30911,7 +31041,7 @@ function simpleWrite(buf) {
 function simpleEnd(buf) {
   return buf && buf.length ? this.write(buf) : '';
 }
-},{"safe-buffer":312}],329:[function(require,module,exports){
+},{"safe-buffer":316}],333:[function(require,module,exports){
 (function (process){(function (){
 var Stream = require('stream')
 
@@ -31023,7 +31153,7 @@ function through (write, end, opts) {
 
 
 }).call(this)}).call(this,require('_process'))
-},{"_process":303,"stream":313}],330:[function(require,module,exports){
+},{"_process":307,"stream":317}],334:[function(require,module,exports){
 (function (global){(function (){
 
 /**
@@ -31094,14 +31224,14 @@ function config (name) {
 }
 
 }).call(this)}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],331:[function(require,module,exports){
+},{}],335:[function(require,module,exports){
 module.exports = function isBuffer(arg) {
   return arg && typeof arg === 'object'
     && typeof arg.copy === 'function'
     && typeof arg.fill === 'function'
     && typeof arg.readUInt8 === 'function';
 }
-},{}],332:[function(require,module,exports){
+},{}],336:[function(require,module,exports){
 // Currently in sync with Node.js lib/internal/util/types.js
 // https://github.com/nodejs/node/commit/112cc7c27551254aa2b17098fb774867f05ed0d9
 
@@ -31437,7 +31567,7 @@ exports.isAnyArrayBuffer = isAnyArrayBuffer;
   });
 });
 
-},{"is-arguments":295,"is-generator-function":298,"is-typed-array":299,"which-typed-array":334}],333:[function(require,module,exports){
+},{"is-arguments":299,"is-generator-function":302,"is-typed-array":303,"which-typed-array":338}],337:[function(require,module,exports){
 (function (process){(function (){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -32156,7 +32286,7 @@ function callbackify(original) {
 exports.callbackify = callbackify;
 
 }).call(this)}).call(this,require('_process'))
-},{"./support/isBuffer":331,"./support/types":332,"_process":303,"inherits":294}],334:[function(require,module,exports){
+},{"./support/isBuffer":335,"./support/types":336,"_process":307,"inherits":298}],338:[function(require,module,exports){
 (function (global){(function (){
 'use strict';
 
@@ -32215,7 +32345,7 @@ module.exports = function whichTypedArray(value) {
 };
 
 }).call(this)}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"available-typed-arrays":4,"call-bind/callBound":8,"es-abstract/helpers/getOwnPropertyDescriptor":283,"for-each":285,"has-tostringtag/shams":291,"is-typed-array":299}],335:[function(require,module,exports){
+},{"available-typed-arrays":8,"call-bind/callBound":12,"es-abstract/helpers/getOwnPropertyDescriptor":287,"for-each":289,"has-tostringtag/shams":295,"is-typed-array":303}],339:[function(require,module,exports){
 module.exports = Yallist
 
 Yallist.Node = Node
@@ -32587,4 +32717,4 @@ function Node (value, prev, next, list) {
   }
 }
 
-},{}]},{},[2]);
+},{}]},{},[5]);

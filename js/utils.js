@@ -5,6 +5,10 @@ export function makeBbox(bounds_array) {
     );
 }
 
+export function makeBboxString(bbox) {
+    return bbox.toBBoxString();
+}
+
 export function isBboxSizeAcceptable(bbox) { // heuristic to fetch
     const width = Math.abs(bbox.getSouthWest().lat - bbox.getNorthEast().lat);
     const height = Math.abs(bbox.getSouthWest().lng - bbox.getNorthEast().lng);
