@@ -36,7 +36,9 @@
     "parserOptions": {
       "sourceType": "module"
     },
-    "rules": {}
+    "rules": {
+      "camelcase": 2
+    }
   },
   "eslintIgnore": [
     "bundle.js"

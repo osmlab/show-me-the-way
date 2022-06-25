@@ -1,7 +1,7 @@
-export function makeBbox(bounds_array) {
+export function makeBbox(boundsArray) {
     return new L.LatLngBounds(
-        new L.LatLng(bounds_array[0], bounds_array[1]),
-        new L.LatLng(bounds_array[2], bounds_array[3])
+        new L.LatLng(boundsArray[0], boundsArray[1]),
+        new L.LatLng(boundsArray[2], boundsArray[3])
     );
 }
 

@@ -2,16 +2,16 @@ import { render } from 'mustache';
 
 class Ui {
     constructor() {
-        this.changeset_info = document.getElementById('changeset_info');
-        this.changeset_info.innerHTML = '<div class="loading">loading...</div>';
+        this.changesetInfo = document.getElementById('changeset_info');
+        this.changesetInfo.innerHTML = '<div class="loading">loading...</div>';
 
-        this.changeset_tmpl = document.getElementById('changeset-template').innerHTML;
+        this.changesetTemplate = document.getElementById('changeset-template').innerHTML;
     }
 
     update(change) {
         this._showComment(change);
         this._showLocation(change);
-        this.changeset_info.innerHTML = render(this.changeset_tmpl, change);
+        this.changesetInfo.innerHTML = render(this.changesetTemplate, change);
     }
 
     _showComment(change) {

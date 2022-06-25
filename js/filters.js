@@ -32,13 +32,13 @@ export function withinBbox(change, bbox) {
     let within = false;
 
     if (type == 'way') {
-        const bbox_intersects_old = (c.old && c.old.bounds && bbox.intersects(makeBbox(c.old.bounds)));
-        const bbox_intersects_new = (c.neu && c.neu.bounds && bbox.intersects(makeBbox(c.neu.bounds)));
-        within = (bbox_intersects_old || bbox_intersects_new);
+        const bboxIntersectsOld = (c.old && c.old.bounds && bbox.intersects(makeBbox(c.old.bounds)));
+        const bboxIntersectsNew = (c.neu && c.neu.bounds && bbox.intersects(makeBbox(c.neu.bounds)));
+        within = (bboxIntersectsOld || bboxIntersectsNew);
     } else if (type == 'node') {
-        const bbox_contains_old = (c.old && c.old.lat && c.old.lon && bbox.contains(new L.LatLng(c.old.lat, c.old.lon)));
-        const bbox_contains_new = (c.neu && c.neu.lat && c.neu.lon && bbox.contains(new L.LatLng(c.neu.lat, c.neu.lon)));
-        within = (bbox_contains_old || bbox_contains_new);
+        const bboxContainsOld = (c.old && c.old.lat && c.old.lon && bbox.contains(new L.LatLng(c.old.lat, c.old.lon)));
+        const bboxContainsNew = (c.neu && c.neu.lat && c.neu.lon && bbox.contains(new L.LatLng(c.neu.lat, c.neu.lon)));
+        within = (bboxContainsOld || bboxContainsNew);
     } else {
         console.error('no bbox check for this geometry type');
     }

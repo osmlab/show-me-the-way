@@ -25,7 +25,7 @@ class Maps {
             this.main.setView(defaultCenter, 13);
         }
 
-        this.overview_map = L.map('overview_map', {
+        this.overviewMap = L.map('overview_map', {
             zoomControl: false,
             dragging: false,
             touchZoom: false,
@@ -41,10 +41,10 @@ class Maps {
                 color: '#ffffff',
                 weight: 1,
                 fill: false
-            }).addTo(this.overview_map);
-            this.overview_map.fitBounds(bbox);
+            }).addTo(this.overviewMap);
+            this.overviewMap.fitBounds(bbox);
         } else {
-            this.overview_map.setView(defaultCenter, 4);
+            this.overviewMap.setView(defaultCenter, 4);
         }
 
         const mapboxKey = 'pk.eyJ1Ijoib3BlbnN0cmVldG1hcHVzIiwiYSI6ImNqdTM1ZWxqe'
@@ -64,26 +64,26 @@ class Maps {
             style_id: 'cj8xtgojqhd3z2sorzpi01csj',
             key: mapboxKey,
             attribution: '<a href="https://mapbox.com/about/maps/">Terms &amp; Conditions</a>'
-        }).addTo(this.overview_map);
+        }).addTo(this.overviewMap);
 
         // Remove Leaflet shoutouts
         this.main.attributionControl.setPrefix('');
-        this.overview_map.attributionControl.setPrefix(false);
+        this.overviewMap.attributionControl.setPrefix(false);
 
-        this.feature_group = L.featureGroup().addTo(this.main);
+        this.featureGroup = L.featureGroup().addTo(this.main);
     }
 
     pruneMapElements() {
-        const visible_bounds = this.main.getBounds();
+        const visibleBounds = this.main.getBounds();
 
-        this.feature_group.eachLayer((l) => {
-            const feature_bounds = 'getBounds' in l ?
+        this.featureGroup.eachLayer((l) => {
+            const featureBounds = 'getBounds' in l ?
                 l.getBounds() : l.getLatLng().toBounds(10);
 
-            if (visible_bounds.intersects(feature_bounds)) {
+            if (visibleBounds.intersects(featureBounds)) {
                 l.setStyle({ opacity: 0.5 });
             } else {
-                this.feature_group.removeLayer(l);
+                this.featureGroup.removeLayer(l);
             }
         });
     }
@@ -91,7 +91,7 @@ class Maps {
     drawMapElement(change, cb) {
         this.pruneMapElements();
         this.main.fitBounds(change.meta.bounds);
-        this.overview_map.panTo(change.meta.bounds.getCenter());
+        this.overviewMap.panTo(change.meta.bounds.getCenter());
 
         const color = {
             create: '#B7FF00',
@@ -114,14 +114,14 @@ class Maps {
                         fill: color,
                         weight: 5,
                         interactive: false
-                    }).addTo(this.feature_group);
+                    }).addTo(this.featureGroup);
                 } else {
                     newLine = L.polyline([], {
                         opacity: 1,
                         color: color,
                         weight: 5,
                         interactive: false
-                    }).addTo(this.feature_group);
+                    }).addTo(this.featureGroup);
                 }
                 const perPt = drawTime / mapElement.linestring.length;
 
@@ -151,7 +151,7 @@ class Maps {
                     color: color,
                     weight: 5,
                     interactive: false
-                }).addTo(this.feature_group);
+                }).addTo(this.featureGroup);
 
                 const perRadius = drawTime / radii.length;
                 function nodeMarkerAnimation() {

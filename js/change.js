@@ -10,9 +10,9 @@ class Change {
 
     fetchChangesetData(id) {
         return new Promise((resolve, reject) => {
-            const cached_data = this.context.changesetCache.get(id);
-            if (cached_data) {
-                return resolve(cached_data);
+            const cachedData = this.context.changesetCache.get(id);
+            if (cachedData) {
+                return resolve(cachedData);
             }
 
             fetch(`//www.openstreetmap.org/api/0.6/changeset/${id}`, {
@@ -24,18 +24,18 @@ class Change {
                     .parseFromString(responseString, 'text/xml')
             })
             .then(data => {
-                const changeset_data = {};
+                const changesetData = {};
                 const tags = data.getElementsByTagName('tag');
 
                 for (let i = 0; i < tags.length; i++) {
                     const key = tags[i].getAttribute('k');
                     const value = tags[i].getAttribute('v');
-                    changeset_data[key] = value;
+                    changesetData[key] = value;
                 }
 
-                this.context.changesetCache.set(id, changeset_data);
+                this.context.changesetCache.set(id, changesetData);
 
-                resolve(changeset_data);
+                resolve(changesetData);
             })
             .catch(err => {
                 console.log('Error fetching changeset data', err);
@@ -62,10 +62,10 @@ class Change {
             const lat = boundsCenter.lat;
             const lon = boundsCenter.lng;
 
-            const nominatim_tmpl = `//nominatim.openstreetmap.org/reverse`
+            const nominatimUrl = `//nominatim.openstreetmap.org/reverse`
                 + `?format=json&lat=${lat}&lon=${lon}&zoom=5`;
 
-            fetch(nominatim_tmpl, {
+            fetch(nominatimUrl, {
                 mode: 'cors'
             })
                 .then(response => response.json())
@@ -92,10 +92,10 @@ class Change {
             }
 
             this.fetchChangesetData(mapElement.changeset)
-                .then(changeset_data => {
+                .then(changesetData => {
                     relevant = (
-                        changeset_data.comment &&
-                        changeset_data.comment.toLowerCase()
+                        changesetData.comment &&
+                        changesetData.comment.toLowerCase()
                             .indexOf(this.context.comment.toLowerCase()) > -1
                     )
 
@@ -136,14 +136,14 @@ class Change {
                     mapElement.lat, mapElement.lon
                 ]);
 
-        const past_tense = {
+        const pastTense = {
             create: 'created',
             modify: 'modified',
             delete: 'deleted'
         };
 
         this.meta = {
-            action: past_tense[this.type],
+            action: pastTense[this.type],
             bounds: bounds,
             id: mapElement.id,
             type: mapElement.type,
@@ -165,8 +165,8 @@ class Change {
             this.fetchDisplayName(bounds.getCenter()),
         ]).then(([changesetData, displayName]) => {
             this.meta.comment = changesetData.comment;
-            this.meta.created_by = changesetData.created_by;
-            this.meta.display_name = displayName;
+            this.meta.createdBy = changesetData.createdBy;
+            this.meta.displayName = displayName;
             return this;
         });
     }
