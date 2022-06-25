@@ -96,7 +96,7 @@ class Change {
                     relevant = (
                         changesetData.comment &&
                         changesetData.comment.toLowerCase()
-                            .indexOf(this.context.comment.toLowerCase()) > -1;
+                            .indexOf(this.context.comment.toLowerCase()) > -1
                     )
 
                     if (!relevant) {
