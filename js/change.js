@@ -18,12 +18,12 @@ class Change {
             fetch(`//www.openstreetmap.org/api/0.6/changeset/${id}`, {
                 mode: 'cors'
             })
-            .then(response => response.text())
-            .then(responseString => {
+            .then((response) => response.text())
+            .then((responseString) => {
                 return new window.DOMParser()
                     .parseFromString(responseString, 'text/xml')
             })
-            .then(data => {
+            .then((data) => {
                 const changesetData = {};
                 const tags = data.getElementsByTagName('tag');
 
@@ -37,7 +37,7 @@ class Change {
 
                 resolve(changesetData);
             })
-            .catch(err => {
+            .catch((err) => {
                 console.log('Error fetching changeset data', err);
                 reject(err);
             });
@@ -47,7 +47,7 @@ class Change {
     fetchDisplayName(boundsCenter) {
         return new Promise((resolve, reject) => {
             const CLOSE_THRESHOLD_METERS = 10000;
-            const closeByKey = this.context.geocodeCache.keys().find(key => {
+            const closeByKey = this.context.geocodeCache.keys().find((key) => {
                 const [ lat, lon ] = key.split(',').map(parseFloat);
                 return boundsCenter.distanceTo(L.latLng(lat, lon)) < CLOSE_THRESHOLD_METERS;
             });
@@ -68,14 +68,14 @@ class Change {
             fetch(nominatimUrl, {
                 mode: 'cors'
             })
-                .then(response => response.json())
-                .then(data => {
+                .then((response) => response.json())
+                .then((data) => {
                     const id = `${lat},${lon}`;
                     const displayName = data.display_name;
                     this.context.geocodeCache.set(id, displayName);
                     resolve(displayName);
                 })
-                .catch(err => {
+                .catch((err) => {
                     console.error('Error fetching location', err);
                     reject(err);
                 });
@@ -92,7 +92,7 @@ class Change {
             }
 
             this.fetchChangesetData(mapElement.changeset)
-                .then(changesetData => {
+                .then((changesetData) => {
                     relevant = (
                         changesetData.comment &&
                         changesetData.comment.toLowerCase()

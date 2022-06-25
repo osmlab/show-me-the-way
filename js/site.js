@@ -52,7 +52,7 @@ function init(windowLocationObj) {
             .filter(acceptableType)
             .filter(hasTags)
             .filter(wayLongEnough)
-            .filter(change => withinBbox(change, bbox))
+            .filter((change) => withinBbox(change, bbox))
             .sort((a, b) => {
                 return (+new Date((a.neu && a.neu.timestamp)))
                     - (+new Date((b.neu && b.neu.timestamp)));
