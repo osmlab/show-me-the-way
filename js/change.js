@@ -21,7 +21,7 @@ class Change {
             .then((response) => response.text())
             .then((responseString) => {
                 return new window.DOMParser()
-                    .parseFromString(responseString, 'text/xml')
+                    .parseFromString(responseString, 'text/xml');
             })
             .then((data) => {
                 const changesetData = {};
@@ -96,7 +96,7 @@ class Change {
                     relevant = (
                         changesetData.comment &&
                         changesetData.comment.toLowerCase()
-                            .indexOf(this.context.comment.toLowerCase()) > -1
+                            .indexOf(this.context.comment.toLowerCase()) > -1;
                     )
 
                     if (!relevant) {
