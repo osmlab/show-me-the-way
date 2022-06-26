@@ -36,7 +36,18 @@
     "parserOptions": {
       "sourceType": "module"
     },
-    "rules": {}
+    "rules": {
+      "camelcase": 2,
+      "arrow-parens": 2,
+      "no-var": 2,
+      "space-before-function-paren": ["error", {
+        "asyncArrow": "always",
+        "anonymous": "never",
+        "named": "never"
+      }],
+      "semi": "error",
+      "semi-spacing": "error"
+    }
   },
   "eslintIgnore": [
     "bundle.js"

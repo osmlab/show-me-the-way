@@ -1,5 +1,3 @@
-"use strict";
-
 import { Change } from './change';
 import { Maps } from './maps';
 import { Ui } from './ui';
@@ -54,7 +52,7 @@ function init(windowLocationObj) {
             .filter(acceptableType)
             .filter(hasTags)
             .filter(wayLongEnough)
-            .filter(change => withinBbox(change, bbox))
+            .filter((change) => withinBbox(change, bbox))
             .sort((a, b) => {
                 return (+new Date((a.neu && a.neu.timestamp)))
                     - (+new Date((b.neu && b.neu.timestamp)));
@@ -90,7 +88,7 @@ function init(windowLocationObj) {
 
 function setContext(obj) {
     const comment = obj.comment || config.comment;
-    if (comment.length) document.title += ' #' + comment;
+    if (comment.length) document.title += ` # ${comment}`;
 
     const context = Object.assign({}, config, obj);
     context.bounds = context.bounds.split(',');
