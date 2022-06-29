@@ -140,7 +140,7 @@ class Maps {
                     } else {
                         window.setTimeout(cb, waitTime);
                     }
-                }                           
+                }
 
                 newLine.addLatLng(mapElement.linestring.pop());
                 drawPt(mapElement.linestring.pop());
