@@ -130,6 +130,7 @@ class Maps {
                 }
                 const perPt = drawTime / mapElement.linestring.length;
 
+                /* eslint-disable no-inner-declarations */
                 function drawPt(pt) {
                     newLine.addLatLng(pt);
                     if (mapElement.linestring.length) {
@@ -139,7 +140,7 @@ class Maps {
                     } else {
                         window.setTimeout(cb, waitTime);
                     }
-                }
+                }                           
 
                 newLine.addLatLng(mapElement.linestring.pop());
                 drawPt(mapElement.linestring.pop());
@@ -168,6 +169,7 @@ class Maps {
                         window.setTimeout(cb, waitTime);
                     }
                 }
+                /* eslint-enable no-inner-declarations */
 
                 nodeMarkerAnimation();
                 break;
