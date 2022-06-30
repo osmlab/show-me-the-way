@@ -1,0 +1,12 @@
+name: Run ESLint
+on: [push]
+jobs:
+  Run-ESLint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v3
+      - name: Install dev dependencies
+        run: npm install --no-audit
+      - name: Run ESLint
+        run: npm run lint

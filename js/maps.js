@@ -50,6 +50,9 @@ class Maps {
         const mapboxKey = 'pk.eyJ1Ijoib3BlbnN0cmVldG1hcHVzIiwiYSI6ImNqdTM1ZWxqe'
             + 'TBqa2MzeXBhODIxdnE2eG8ifQ.zyhAo181muDzPRdyYsqLGw';
 
+        /* eslint-disable camelcase */
+        // the style_id property throws off this rule
+
         new L.TileLayer(
             'https://api.mapbox.com/styles/v1/openstreetmapus/{style_id}/tiles/256/{z}/{x}/{y}?access_token={key}', {
             style_id: 'cju35gljt1bpm1fp2z93dlyca',
@@ -65,6 +68,8 @@ class Maps {
             key: mapboxKey,
             attribution: '<a href="https://mapbox.com/about/maps/">Terms &amp; Conditions</a>'
         }).addTo(this.overviewMap);
+
+        /* eslint-enable camelcase */
 
         // Remove Leaflet shoutouts
         this.main.attributionControl.setPrefix('');
@@ -125,6 +130,7 @@ class Maps {
                 }
                 const perPt = drawTime / mapElement.linestring.length;
 
+                /* eslint-disable no-inner-declarations */
                 function drawPt(pt) {
                     newLine.addLatLng(pt);
                     if (mapElement.linestring.length) {
@@ -163,6 +169,7 @@ class Maps {
                         window.setTimeout(cb, waitTime);
                     }
                 }
+                /* eslint-enable no-inner-declarations */
 
                 nodeMarkerAnimation();
                 break;

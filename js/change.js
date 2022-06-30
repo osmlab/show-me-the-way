@@ -97,7 +97,7 @@ class Change {
                         changesetData.comment &&
                         changesetData.comment.toLowerCase()
                             .indexOf(this.context.comment.toLowerCase()) > -1
-                    )
+                    );
 
                     if (!relevant) {
                         console.log(
