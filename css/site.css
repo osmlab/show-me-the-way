@@ -107,6 +107,10 @@ h1 {
     bottom: 0;
 }
 
+#comment {
+    font-size: calc(12px + 0.375em);
+}
+
 /* large */
 @media only screen and (min-width: 1200px) {
     .container {
