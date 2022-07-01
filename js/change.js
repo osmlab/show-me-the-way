@@ -165,7 +165,7 @@ class Change {
             this.fetchDisplayName(bounds.getCenter()),
         ]).then(([changesetData, displayName]) => {
             this.meta.comment = changesetData.comment;
-            this.meta.createdBy = changesetData.createdBy;
+            this.meta.createdBy = changesetData.created_by;
             this.meta.displayName = displayName;
             return this;
         });

@@ -6,22 +6,25 @@
     <link rel='stylesheet' href='//unpkg.com/leaflet@1.8.0/dist/leaflet.css' />
     <link rel='stylesheet' href='css/style.css' />
     <link rel='stylesheet' href='css/site.css' />
-    <link href='//fonts.googleapis.com/css?family=Open+Sans:400,700|Open+Sans+Condensed:700' rel='stylesheet' type='text/css'>
-
 </head>
 <body>
 <div class='container'>
-    <div class='sq overlay round'>
-        <div id='overview_map'></div>
-        <p class='pad2 change-meta' id='reverse-location'></p>
+    <div id='loading'>
+        <h1>Loading...</h1>
     </div>
-    <div class='overlay align-bottom'>
-        <div class='pad2' id='changeset_info'></div>
-        <p class='pad2 change-meta' id='comment'></p>
+    <div id='main' class='full-height'>
+        <div class='overlay'>
+            <div id='overview_map'></div>
+            <p class='pad2 bold' id='reverse-location'></p>
+        </div>
+        <div id='metadata' class='overlay'>
+            <div class='pad2' id='changeset_info'></div>
+            <p class='pad2 bold' id='comment'></p>
+        </div>
+        <div class='indicator' id='queuesize'></div>
+        <div id='map' class='col12 full-height'></div>
+        <a href='http://openstreetmap.org/' class='byosm'></a>
     </div>
-    <div class='indicator' id='queuesize'></div>
-    <div id='map' class='col12 full-height'></div>
-    <a href='http://openstreetmap.org/' class='byosm'></a>
 </div>
     <template id='changeset-template'>
 <p><a target='_blank' href='//openstreetmap.org/browse/changeset/{{meta.changeset}}'>{{meta.timetext}}</a> <a target='_blank' href='//openstreetmap.org/user/{{meta.user}}'>{{meta.user}}</a>

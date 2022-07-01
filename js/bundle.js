@@ -18,27 +18,28 @@ class Change {
 
   fetchChangesetData(id) {
     return new Promise((resolve, reject) => {
-      const cached_data = this.context.changesetCache.get(id);
+      const cachedData = this.context.changesetCache.get(id);
 
-      if (cached_data) {
-        return resolve(cached_data);
+      if (cachedData) {
+        return resolve(cachedData);
       }
 
-      const urlTemplate = '//www.openstreetmap.org/api/0.6/changeset/{id}';
-      fetch(urlTemplate.replace('{id}', id), {
+      fetch(`//www.openstreetmap.org/api/0.6/changeset/${id}`, {
         mode: 'cors'
-      }).then(response => response.text()).then(responseString => new window.DOMParser().parseFromString(responseString, 'text/xml')).then(data => {
-        const changeset_data = {};
+      }).then(response => response.text()).then(responseString => {
+        return new window.DOMParser().parseFromString(responseString, 'text/xml');
+      }).then(data => {
+        const changesetData = {};
         const tags = data.getElementsByTagName('tag');
 
         for (let i = 0; i < tags.length; i++) {
           const key = tags[i].getAttribute('k');
           const value = tags[i].getAttribute('v');
-          changeset_data[key] = value;
+          changesetData[key] = value;
         }
 
-        this.context.changesetCache.set(id, changeset_data);
-        resolve(changeset_data);
+        this.context.changesetCache.set(id, changesetData);
+        resolve(changesetData);
       }).catch(err => {
         console.log('Error fetching changeset data', err);
         reject(err);
@@ -64,8 +65,8 @@ class Change {
 
       const lat = boundsCenter.lat;
       const lon = boundsCenter.lng;
-      const nominatim_tmpl = '//nominatim.openstreetmap.org/reverse?format=json' + '&lat={lat}&lon={lon}&zoom=5';
-      fetch(nominatim_tmpl.replace('{lat}', lat).replace('{lon}', lon), {
+      const nominatimUrl = `//nominatim.openstreetmap.org/reverse` + `?format=json&lat=${lat}&lon=${lon}&zoom=5`;
+      fetch(nominatimUrl, {
         mode: 'cors'
       }).then(response => response.json()).then(data => {
         const id = `${lat},${lon}`;
@@ -88,8 +89,8 @@ class Change {
         return resolve(true);
       }
 
-      this.fetchChangesetData(mapElement.changeset).then(changeset_data => {
-        relevant = changeset_data.comment && changeset_data.comment.toLowerCase().indexOf(this.context.comment.toLowerCase()) > -1;
+      this.fetchChangesetData(mapElement.changeset).then(changesetData => {
+        relevant = changesetData.comment && changesetData.comment.toLowerCase().indexOf(this.context.comment.toLowerCase()) > -1;
 
         if (!relevant) {
           console.log("Skipping map element " + mapElement.id + " because changeset " + mapElement.changeset + " didn't match " + this.context.comment);
@@ -117,13 +118,13 @@ class Change {
   enhance() {
     const mapElement = this.type === 'delete' ? this.old : this.neu;
     const bounds = mapElement.type === 'way' ? (0, _utils.makeBbox)(mapElement.bounds) : (0, _utils.makeBbox)([mapElement.lat, mapElement.lon, mapElement.lat, mapElement.lon]);
-    const past_tense = {
+    const pastTense = {
       create: 'created',
       modify: 'modified',
       delete: 'deleted'
     };
     this.meta = {
-      action: past_tense[this.type],
+      action: pastTense[this.type],
       bounds: bounds,
       id: mapElement.id,
       type: mapElement.type,
@@ -137,8 +138,8 @@ class Change {
     this.tagText = this.createTagText();
     return Promise.all([this.fetchChangesetData(this.meta.changeset), this.fetchDisplayName(bounds.getCenter())]).then(([changesetData, displayName]) => {
       this.meta.comment = changesetData.comment;
-      this.meta.created_by = changesetData.created_by;
-      this.meta.display_name = displayName;
+      this.meta.createdBy = changesetData.created_by;
+      this.meta.displayName = displayName;
       return this;
     });
   }
@@ -202,13 +203,13 @@ function withinBbox(change, bbox) {
   let within = false;
 
   if (type == 'way') {
-    const bbox_intersects_old = c.old && c.old.bounds && bbox.intersects((0, _utils.makeBbox)(c.old.bounds));
-    const bbox_intersects_new = c.neu && c.neu.bounds && bbox.intersects((0, _utils.makeBbox)(c.neu.bounds));
-    within = bbox_intersects_old || bbox_intersects_new;
+    const bboxIntersectsOld = c.old && c.old.bounds && bbox.intersects((0, _utils.makeBbox)(c.old.bounds));
+    const bboxIntersectsNew = c.neu && c.neu.bounds && bbox.intersects((0, _utils.makeBbox)(c.neu.bounds));
+    within = bboxIntersectsOld || bboxIntersectsNew;
   } else if (type == 'node') {
-    const bbox_contains_old = c.old && c.old.lat && c.old.lon && bbox.contains(new L.LatLng(c.old.lat, c.old.lon));
-    const bbox_contains_new = c.neu && c.neu.lat && c.neu.lon && bbox.contains(new L.LatLng(c.neu.lat, c.neu.lon));
-    within = bbox_contains_old || bbox_contains_new;
+    const bboxContainsOld = c.old && c.old.lat && c.old.lon && bbox.contains(new L.LatLng(c.old.lat, c.old.lon));
+    const bboxContainsNew = c.neu && c.neu.lat && c.neu.lon && bbox.contains(new L.LatLng(c.neu.lat, c.neu.lon));
+    within = bboxContainsOld || bboxContainsNew;
   } else {
     console.error('no bbox check for this geometry type');
   }
@@ -254,7 +255,7 @@ class Maps {
       this.main.setView(defaultCenter, 13);
     }
 
-    this.overview_map = L.map('overview_map', {
+    this.overviewMap = L.map('overview_map', {
       zoomControl: false,
       dragging: false,
       touchZoom: false,
@@ -270,10 +271,10 @@ class Maps {
         color: '#ffffff',
         weight: 1,
         fill: false
-      }).addTo(this.overview_map);
-      this.overview_map.fitBounds(bbox);
+      }).addTo(this.overviewMap);
+      this.overviewMap.fitBounds(bbox);
     } else {
-      this.overview_map.setView(defaultCenter, 4);
+      this.overviewMap.setView(defaultCenter, 4);
     }
 
     const mapboxKey = 'pk.eyJ1Ijoib3BlbnN0cmVldG1hcHVzIiwiYSI6ImNqdTM1ZWxqe' + 'TBqa2MzeXBhODIxdnE2eG8ifQ.zyhAo181muDzPRdyYsqLGw';
@@ -288,24 +289,24 @@ class Maps {
       style_id: 'cj8xtgojqhd3z2sorzpi01csj',
       key: mapboxKey,
       attribution: '<a href="https://mapbox.com/about/maps/">Terms &amp; Conditions</a>'
-    }).addTo(this.overview_map); // Remove Leaflet shoutouts
+    }).addTo(this.overviewMap); // Remove Leaflet shoutouts
 
     this.main.attributionControl.setPrefix('');
-    this.overview_map.attributionControl.setPrefix(false);
-    this.feature_group = L.featureGroup().addTo(this.main);
+    this.overviewMap.attributionControl.setPrefix(false);
+    this.featureGroup = L.featureGroup().addTo(this.main);
   }
 
   pruneMapElements() {
-    const visible_bounds = this.main.getBounds();
-    this.feature_group.eachLayer(l => {
-      const feature_bounds = 'getBounds' in l ? l.getBounds() : l.getLatLng().toBounds(10);
+    const visibleBounds = this.main.getBounds();
+    this.featureGroup.eachLayer(l => {
+      const featureBounds = 'getBounds' in l ? l.getBounds() : l.getLatLng().toBounds(10);
 
-      if (visible_bounds.intersects(feature_bounds)) {
+      if (visibleBounds.intersects(featureBounds)) {
         l.setStyle({
           opacity: 0.5
         });
       } else {
-        this.feature_group.removeLayer(l);
+        this.featureGroup.removeLayer(l);
       }
     });
   }
@@ -313,7 +314,7 @@ class Maps {
   drawMapElement(change, cb) {
     this.pruneMapElements();
     this.main.fitBounds(change.meta.bounds);
-    this.overview_map.panTo(change.meta.bounds.getCenter());
+    this.overviewMap.panTo(change.meta.bounds.getCenter());
     const color = {
       create: '#B7FF00',
       modify: '#FF00EA',
@@ -335,14 +336,14 @@ class Maps {
               fill: color,
               weight: 5,
               interactive: false
-            }).addTo(this.feature_group);
+            }).addTo(this.featureGroup);
           } else {
             newLine = L.polyline([], {
               opacity: 1,
               color: color,
               weight: 5,
               interactive: false
-            }).addTo(this.feature_group);
+            }).addTo(this.featureGroup);
           }
 
           const perPt = drawTime / mapElement.linestring.length;
@@ -378,7 +379,7 @@ class Maps {
             color: color,
             weight: 5,
             interactive: false
-          }).addTo(this.feature_group);
+          }).addTo(this.featureGroup);
           const perRadius = drawTime / radii.length;
 
           function nodeMarkerAnimation() {
@@ -472,7 +473,7 @@ function init(windowLocationObj) {
 
 function setContext(obj) {
   const comment = obj.comment || _config.config.comment;
-  if (comment.length) document.title += ' #' + comment;
+  if (comment.length) document.title += ` # ${comment}`;
   const context = Object.assign({}, _config.config, obj);
   context.bounds = context.bounds.split(',');
   context.runTime = 1000 * context.runTime;
@@ -495,29 +496,33 @@ var _mustache = require("mustache");
 
 class Ui {
   constructor() {
-    this.changeset_info = document.getElementById('changeset_info');
-    this.changeset_info.innerHTML = '<div class="loading">loading...</div>';
-    this.changeset_tmpl = document.getElementById('changeset-template').innerHTML;
+    this.changesetInfo = document.getElementById('changeset_info');
+    this.changesetTemplate = document.getElementById('changeset-template').innerHTML;
   }
 
   update(change) {
-    this._showComment(change);
+    document.getElementById('loading').classList.add('fade-out');
+    document.querySelectorAll('.overlay').forEach(overlay => {
+      overlay.classList.add('fade-in');
+    });
 
-    this._showLocation(change);
+    this._updateComment(change);
 
-    this.changeset_info.innerHTML = (0, _mustache.render)(this.changeset_tmpl, change);
+    this._updateLocation(change);
+
+    this.changesetInfo.innerHTML = (0, _mustache.render)(this.changesetTemplate, change);
   }
 
-  _showComment(change) {
-    document.getElementById('comment').textContent = change.meta.comment + ' in ' + change.meta.created_by;
+  _updateComment(change) {
+    document.getElementById('comment').textContent = change.meta.comment + ' in ' + change.meta.createdBy;
   }
 
   updateQueueSize(numChanges) {
     document.getElementById('queuesize').textContent = numChanges;
   }
 
-  _showLocation(change) {
-    document.getElementById('reverse-location').textContent = change.meta.display_name;
+  _updateLocation(change) {
+    document.getElementById('reverse-location').textContent = change.meta.displayName;
   }
 
 }
@@ -534,8 +539,8 @@ exports.isBboxSizeAcceptable = isBboxSizeAcceptable;
 exports.makeBbox = makeBbox;
 exports.makeBboxString = makeBboxString;
 
-function makeBbox(bounds_array) {
-  return new L.LatLngBounds(new L.LatLng(bounds_array[0], bounds_array[1]), new L.LatLng(bounds_array[2], bounds_array[3]));
+function makeBbox(boundsArray) {
+  return new L.LatLngBounds(new L.LatLng(boundsArray[0], boundsArray[1]), new L.LatLng(boundsArray[2], boundsArray[3]));
 }
 
 function makeBboxString(bbox) {
