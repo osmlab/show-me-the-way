@@ -130,3 +130,27 @@
         padding: 10px;
     }
 }
+
+#loading {
+    background-color: var(--backgroundColor);
+    padding: 1.5rem 2.5rem;
+    position: absolute;
+    top: 33%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 999;
+}
+
+.fade-out {
+    opacity: 0;
+    transition: var(--fadeTransition);
+}
+
+.fade-in {
+    opacity: 1;
+    transition: var(--fadeTransition);
+}
+
+.bold {
+    font-weight: bold;
+}

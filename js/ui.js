@@ -3,20 +3,23 @@ import { render } from 'mustache';
 class Ui {
     constructor() {
         this.changesetInfo = document.getElementById('changeset_info');
-        this.changesetInfo.innerHTML = '<div class="loading">loading...</div>';
-
         this.changesetTemplate = document.getElementById('changeset-template').innerHTML;
     }
 
     update(change) {
-        this._showComment(change);
-        this._showLocation(change);
+        document.getElementById('loading').classList.add('fade-out');
+        document.querySelectorAll('.overlay').forEach((overlay) => {
+            overlay.classList.add('fade-in');
+        });
+
+        this._updateComment(change);
+        this._updateLocation(change);
         this.changesetInfo.innerHTML = render(this.changesetTemplate, change);
     }
 
-    _showComment(change) {
+    _updateComment(change) {
         document.getElementById('comment').textContent = (
-            change.meta.comment + ' in ' + change.meta.created_by
+            change.meta.comment + ' in ' + change.meta.createdBy
         );
     }
 
@@ -24,8 +27,8 @@ class Ui {
         document.getElementById('queuesize').textContent = numChanges;
     }
 
-    _showLocation(change) {
-        document.getElementById('reverse-location').textContent = change.meta.display_name;
+    _updateLocation(change) {
+        document.getElementById('reverse-location').textContent = change.meta.displayName;
     }
 }
 
