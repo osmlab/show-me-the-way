@@ -8,6 +8,9 @@
     --largeFontSize: 2rem;
     --mediumFontSize: 1.5rem;
     --smallFontSize: 1rem;
+    --largeMargin: 2rem 8rem;
+    --mediumMargin: 1rem;
+    --smallMargin: 0;
 }
 
 h1 {
@@ -35,8 +38,7 @@ h1 {
     z-index: 500;
     position: absolute;
     background: var(--backgroundColor);
-    margin-top: 2rem;
-    margin-left: 8.33333%;
+    margin: var(--largeMargin);
     line-height: 1.3333;
     opacity: 0;
 }
@@ -65,22 +67,13 @@ h1 {
     position: relative;
 }
 
-.sq {
-    width:300px;
-}
-
 .indicator {
     position:absolute;
     top:5px;
-    left:5px;
+    right:5px;
     color: var(--mainFontColor);
     z-index:501;
     font-size: var(--smallFontSize);
-    text-shadow:
-        0 0 2px #000,
-        0 0 2px #000,
-        0 0 2px #000,
-        0 0 2px #000;
 }
 
 #overview_map::after {
@@ -105,14 +98,16 @@ h1 {
     font-weight: 400;
 }
 
-.align-bottom {
-    bottom: 2rem;
-}
-
 #reverse-location {
+    max-width: 300px;
     font-size: calc(12px + 0.375em);
 }
 
+#metadata {
+    bottom: 0;
+}
+
+/* large */
 @media only screen and (min-width: 1200px) {
     .container {
         font-size: var(--largeFontSize);
@@ -122,24 +117,26 @@ h1 {
     }
 }
 
+/* medium */
 @media only screen and (max-width: 1200px) {
    .container {
         font-size: var(--mediumFontSize);
     }
     .overlay {
-        margin-top: 1.5rem;
+        margin: var(--mediumMargin);
     }
     #reverse-location p::before {
         top: 0px;
     }
 }
 
+/* small */
 @media only screen and (max-width: 640px) {
    .container {
         font-size: var(--smallFontSize);
     }
     .overlay {
-        margin: 0px;
+        margin: var(--smallMargin);
     }
     p { margin-bottom: 10px;}
     #overview_map {
