@@ -1,8 +1,25 @@
+:root {
+    --backgroundColor: rgba(0,0,0,0.9);
+    --mainFontColor: rgba(255,255,255,1);
+    --yellow: #FFEEB2;
+    --fadeTransition: all 0.5s cubic-bezier(0.22, 0.61, 0.36, 1);
+    --blueAccent: #0F80FF;
+    --attributionFont: rgba(255,255,255,0.5);
+    --largeFontSize: 2rem;
+    --mediumFontSize: 1.5rem;
+    --smallFontSize: 1rem;
+}
+
+h1 {
+    font-size: var(--largeFontSize * 3);
+    line-height: 120%;
+    letter-spacing: -0.125rem;
+}
+
 .container {
     position:absolute;
     height:100%;
     width:100%;
-    font-size:24px;
 }
 
 .full-height {
@@ -11,17 +28,17 @@
 }
 
 #map {
-    background:#000;
+    background: var(--backgroundColor);
 }
 
 .overlay {
     z-index: 500;
     position: absolute;
-    background: #000;
-    color:#aaa;
-    margin-top: 40px;
+    background: var(--backgroundColor);
+    margin-top: 2rem;
     margin-left: 8.33333%;
     line-height: 1.3333;
+    opacity: 0;
 }
 
 .byosm {
@@ -34,11 +51,16 @@
 }
 
 .overlay a {
-    color:#fff;
+    color: var(--mainFontColor);
+    text-decoration: underline;
+    text-underline-offset: 0.5rem;
+    text-decoration-color: rgba(255,255,255, 0.25);
+    text-decoration-thickness: 0.125rem;
 }
 
 #overview_map {
-    height: 300px;
+    height: 240px;
+    width:  300px;
     background:#111;
     position: relative;
 }
@@ -51,9 +73,9 @@
     position:absolute;
     top:5px;
     left:5px;
-    color:#fff;
+    color: var(--mainFontColor);
     z-index:501;
-    font-size:20px;
+    font-size: var(--smallFontSize);
     text-shadow:
         0 0 2px #000,
         0 0 2px #000,
@@ -75,50 +97,47 @@
 
 .leaflet-control-attribution {
     box-shadow:none !important;
-    background:rgba(0, 0, 0, 0.2) !important;
-    color:white !important;
+    background: rgba(0, 0, 0, 0.5) !important;
 }
 
-.change-meta {
-    font-size:20px;
-    font-weight:bold;
-    color:#fff;
-    position: relative;
-}
-
-.loading {
-    background:url(loader_bg.gif);
-    padding:10px;
-    color:#000;
-    text-align:center;
+.leaflet-control-attribution a {
+    color: rgba(255,255,255,0.5) !important;
+    font-weight: 400;
 }
 
 .align-bottom {
-    bottom:20px;
+    bottom: 2rem;
 }
 
-@media only screen and (max-width: 900px) {
-    .overlay {
-        margin-top: 20px;
-    }
-    .container {
-        font-size: 18px;
-    }
-    #reverse-location p::before {
-        top: 0px;
-    }
+#reverse-location {
+    font-size: calc(12px + 0.375em);
 }
 
 @media only screen and (min-width: 1200px) {
     .container {
-        font-size: 32px;
+        font-size: var(--largeFontSize);
     }
     #reverse-location p::before {
         top: 8px;
     }
 }
 
+@media only screen and (max-width: 1200px) {
+   .container {
+        font-size: var(--mediumFontSize);
+    }
+    .overlay {
+        margin-top: 1.5rem;
+    }
+    #reverse-location p::before {
+        top: 0px;
+    }
+}
+
 @media only screen and (max-width: 640px) {
+   .container {
+        font-size: var(--smallFontSize);
+    }
     .overlay {
         margin: 0px;
     }
