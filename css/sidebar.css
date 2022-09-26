@@ -1,0 +1,85 @@
+:root {
+    --sidebarTransition: left 0.5s;
+    --sidebarWidth: 300px;
+    --sidebarButtonSize: 50px;
+}
+
+.sidebar, .sidebar-button {
+    position: absolute;
+    top: 0;
+    z-index: 600;
+    transition: var(--sidebarTransition);
+}
+
+.sidebar {
+    left: calc(-1 * var(--sidebarWidth));
+    height: 100vh;
+    width: var(--sidebarWidth);
+    padding: 10px;
+    background: var(--backgroundColor);
+    overflow-x: auto;
+}
+
+.sidebar-visible .sidebar   {
+    left: 0px;
+}
+
+.sidebar-button {
+    left: 0;
+    height: var(--sidebarButtonSize);
+    width: var(--sidebarButtonSize);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+}
+
+.sidebar-visible .hide-sidebar-button {
+    background: var(--backgroundColor);
+}
+
+.sidebar-button:hover {
+    cursor: pointer;
+}
+
+.sidebar-visible .sidebar-button {
+    left: var(--sidebarWidth);
+}
+
+.show-sidebar-button, .hide-sidebar-button {
+    border: 0;
+    color: var(--mainFontColor);
+    background: transparent;
+    border-radius: 0;
+    cursor: pointer;
+    width: 100%;
+    height: 100%;
+    font-size: var(--largeFontSize);
+}
+
+.sidebar-visible .show-sidebar-button {
+    display: none;
+}
+
+.hide-sidebar-button {
+    display: none;
+}
+
+.sidebar-visible .hide-sidebar-button {
+    display: block;
+}
+
+.sidebar form {
+    padding-top: 20px;
+}
+
+.sidebar input {
+    width: 100%;
+    color: var(--mainFontColor);
+    background: var(--backgroundColor);
+    border: none;
+}
+
+.sidebar h1 {
+    font-size: var(--largeFontSize);
+}

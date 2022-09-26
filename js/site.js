@@ -1,6 +1,7 @@
 import { Change } from './change';
 import { Maps } from './maps';
 import { Ui } from './ui';
+import { Sidebar } from './ui/sidebar';
 
 import { config } from './config';
 
@@ -26,9 +27,8 @@ function init(windowLocationObj) {
     const ui = new Ui();
 
     // get user params from the url
-    const params = Object.fromEntries(
-        new URLSearchParams(windowLocationObj.hash.replace('#', ''))
-    );
+    const hashParams = new URLSearchParams(windowLocationObj.hash.replace('#', ''));
+    const params = Object.fromEntries(hashParams);
 
     // override default config with user params where applicable
     const context = setContext(params);
@@ -61,6 +61,10 @@ function init(windowLocationObj) {
 
     // create the maps
     const maps = new Maps(context, bbox);
+
+    // setup the sidebar
+    const sidebar = new Sidebar(hashParams, windowLocationObj, context);
+    sidebar.initializeEventListeners();
 
     function controller() {
         if (queue.length) {

@@ -6,6 +6,7 @@
     <link rel='stylesheet' href='//unpkg.com/leaflet@1.8.0/dist/leaflet.css' />
     <link rel='stylesheet' href='css/style.css' />
     <link rel='stylesheet' href='css/site.css' />
+    <link rel='stylesheet' href='css/sidebar.css' />
 </head>
 <body>
 <div class='container'>
@@ -25,6 +26,22 @@
         <div id='map' class='col12 full-height'></div>
         <a href='http://openstreetmap.org/' class='byosm'></a>
     </div>
+</div>
+<div class="sidebar">
+    <h1>Parameters</h1>
+    <form id="settings-form">
+        <label>Playback speed
+            <input type="range" name="runTime" min="-10" max="-2" />
+        </label>
+    </form>
+</div>
+<div class="sidebar-button" id="sidebar-button">
+    <button class="show-sidebar-button">
+        ☰
+    </button>
+    <button class="hide-sidebar-button">
+        ←
+    </button>
 </div>
     <template id='changeset-template'>
 <p><a target='_blank' href='//openstreetmap.org/browse/changeset/{{meta.changeset}}'>{{meta.timetext}}</a> <a target='_blank' href='//openstreetmap.org/user/{{meta.user}}'>{{meta.user}}</a>
