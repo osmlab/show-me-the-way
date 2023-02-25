@@ -80,6 +80,10 @@
     border: none;
 }
 
+.sidebar input[type="text"] {
+    border: 1px solid var(--mainFontColor);
+}
+
 .sidebar h1 {
     font-size: var(--largeFontSize);
 }
