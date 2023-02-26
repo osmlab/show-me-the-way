@@ -3,11 +3,10 @@
 <head>
     <title>Show Me The Way</title>
     <meta charset='utf-8' />
-    <link rel='stylesheet' href='//cdnjs.cloudflare.com/ajax/libs/leaflet/0.5/leaflet.css' />
+    <link rel='stylesheet' href='//unpkg.com/leaflet@1.8.0/dist/leaflet.css' />
     <link rel='stylesheet' href='css/style.css' />
     <link rel='stylesheet' href='css/site.css' />
     <link rel='stylesheet' href='js/locationfilter/src/locationfilter.css' />
-    <!--[if lte IE 8]><link rel='stylesheet' href='http://cdn.leafletjs.com/leaflet-0.5/leaflet.ie.css' /><![endif]-->
     <style>
         #bbox {
             position:absolute;
@@ -20,6 +19,7 @@
             color:#000;
             border:0;
             margin:0;
+            z-index: 500;
         }
     </style>
 </head>
@@ -28,7 +28,7 @@
     <div id='map' class='col12 full-height'></div>
     <a target='_blank' id='bbox'></a>
 </div>
-    <script src='//cdnjs.cloudflare.com/ajax/libs/leaflet/0.5/leaflet.js'></script>
+    <script src='//unpkg.com/leaflet@1.8.0/dist/leaflet.js'></script>
     <script src='js/locationfilter/src/locationfilter.js'></script>
     <script>
     //<![CDATA[
