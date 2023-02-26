@@ -100,7 +100,8 @@ L.LocationFilter = L.Class.extend({
         },
         adjustButton: {
             text: "Select area within current zoom"
-        }
+        },
+        buttonPosition: 'topleft'
     },
 
     initialize: function(options) {
@@ -114,7 +115,6 @@ L.LocationFilter = L.Class.extend({
 
     onAdd: function(map) {
         this._map = map;
-        this._layer = new L.LayerGroup();
 
         if (this.options.enableButton || this.options.adjustButton) {
             this._initializeButtonContainer();
@@ -284,6 +284,8 @@ L.LocationFilter = L.Class.extend({
         if (this._initialDrawCalled) {
             return;
         }
+
+        this._layer = new L.LayerGroup();
 
         // Calculate filter bounds
         this._calculateBounds();
@@ -467,7 +469,10 @@ L.LocationFilter = L.Class.extend({
        toggles the location filter */
     _initializeButtonContainer: function() {
         var that = this;
-        this._buttonContainer = new L.Control.ButtonContainer({className: "location-filter button-container"});
+        this._buttonContainer = new L.Control.ButtonContainer({
+	    className: "location-filter button-container",
+	    position: this.options.buttonPosition
+	});
 
         if (this.options.enableButton) {
             this._enableButton = new L.Control.Button({

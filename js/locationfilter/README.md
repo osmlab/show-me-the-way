@@ -9,6 +9,10 @@ the filter.
 leaflet-locationfilter is developed by <a href="http://tripbirds.com">Tripbirds.com</a>.
 You may <a href="http://tripbirds.com/hotels/new-york/?bounds=40.721,-73.992,40.75,-73.969">see it in action here</a>.
 
+Another similar plugin is <a href="https://github.com/heyman/leaflet-areaselect/">Leaflet.AreaSelect</a>, 
+which solves the same problem, but with a fixed and centered rectangle, that can't be moved, and that has support for locking the aspect ratio of the selection. 
+
+
 ### Usage
 Create a new LocationFilter and add it to the map:
 
@@ -49,6 +53,8 @@ var isEnabled = locationFilter.isEnabled();
 **bounds** (optional): The initial bounds for the location filter. Defaults to the maps own bounds.
 
 **enable** (optional): Set to true to enable the filter as soon as it is added to the map. Defaults to false.
+
+**buttonPosition**: Set to position the associated buttons on the map. Defaults to 'topleft'.
 
 #### Events
 
