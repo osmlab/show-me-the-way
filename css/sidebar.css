@@ -87,3 +87,12 @@
 .sidebar h1 {
     font-size: var(--largeFontSize);
 }
+
+.sidebar a {
+    color: var(--mainFontColor);
+}
+
+.sidebar .bbox-link {
+    padding-top: 10px;
+    display: block;
+}

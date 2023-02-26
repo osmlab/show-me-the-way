@@ -10,6 +10,8 @@ class Sidebar {
         this.runTimeElement.value = -1 * this.context.runTime / 1000;
         this.commentElement = document.getElementsByName('comment')[0];
         this.commentElement.value = this.context.comment;
+        this.bboxLinkElement = document.getElementById('bbox-link');
+        this._updateBboxLink();
     }
 
     initializeEventListeners() {
@@ -30,6 +32,10 @@ class Sidebar {
                 this._updateComment(this.commentElement.value);
             });
         });
+
+        window.addEventListener('hashchange', () => {
+            this._updateBboxLink();
+        });
     }
 
     _updateRuntime(newRunTime) {
@@ -45,6 +51,12 @@ class Sidebar {
     _updateHash(key, value) {
         this.hashParams.set(key, value);
         this.windowLocationObj.hash = '#' + this.hashParams.toString();
+    }
+
+    _updateBboxLink() {
+        const bboxUrl = new URL('bbox.html', this.windowLocationObj.href);
+        bboxUrl.hash = this.hashParams;
+        this.bboxLinkElement.setAttribute('href', bboxUrl);
     }
 }
 

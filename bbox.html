@@ -26,12 +26,26 @@
 <body>
 <div class='container'>
     <div id='map' class='col12 full-height'></div>
-    <a target='_blank' id='bbox'></a>
+    <a id='bbox'></a>
 </div>
     <script src='//unpkg.com/leaflet@1.8.0/dist/leaflet.js'></script>
     <script src='js/locationfilter/src/locationfilter.js'></script>
     <script>
     //<![CDATA[
+    function updateLink(bounds, hashParams) {
+        const bs =
+            bounds.getSouthWest().lat.toFixed(5) + ',' +
+            bounds.getSouthWest().lng.toFixed(5) + ',' +
+            bounds.getNorthEast().lat.toFixed(5) + ',' +
+            bounds.getNorthEast().lng.toFixed(5);
+        hashParams.set('bounds', bs);
+        var loc = new URL(location.href.replace('bbox.html', '').replace('bbox', ''));
+        loc.hash = hashParams;
+        document.getElementById('bbox').textContent = loc;
+        document.getElementById('bbox').setAttribute('href', loc);
+    }
+
+    const hashParams = new URLSearchParams(location.hash.replace('#', ''));
     var map = L.map('map');
     const mapboxKey = 'pk.eyJ1Ijoib3BlbnN0cmVldG1hcHVzIiwiYSI6ImNqdTM1ZWxqeTBqa2MzeXBhODIxdnE2eG8ifQ.zyhAo181muDzPRdyYsqLGw';
     var osm = new L.TileLayer(
@@ -41,19 +55,26 @@
         attribution: '<a href="https://mapbox.com/about/maps/">Terms &amp; Conditions</a>'}).addTo(map);
     map.setView([0, 0], 3);
     var locationFilter = new L.LocationFilter().addTo(map);
+    const hashBounds = hashParams.get('bounds');
+    if (hashBounds) {
+        const boundsParts = hashBounds.split(',');
+        if (boundsParts.length === 4) {
+            const providedBounds = L.latLngBounds(
+                [ boundsParts[0], boundsParts[1] ],
+                [ boundsParts[2], boundsParts[3] ],
+            );
+            locationFilter.setBounds(providedBounds);
+            map.fitBounds(providedBounds);
+            updateLink(providedBounds, hashParams);
+        }
+    }
     locationFilter.on("change", function (e) {
         console.log(e.bounds);
-        var bs =
-            e.bounds.getSouthWest().lat.toFixed(5) + ',' +
-            e.bounds.getSouthWest().lng.toFixed(5) + ',' +
-            e.bounds.getNorthEast().lat.toFixed(5) + ',' +
-            e.bounds.getNorthEast().lng.toFixed(5);
         // Do something when the bounds change.
         // Bounds are available in `e.bounds`.
-        var loc = location.href.replace('bbox.html', '').replace('bbox', '') + '#bounds=' + bs;
-        document.getElementById('bbox').textContent = loc;
-        document.getElementById('bbox').setAttribute('href', loc);
+        updateLink(e.bounds, hashParams);
     });
+    locationFilter.enable();
     //]]>
     </script>
 </body>
