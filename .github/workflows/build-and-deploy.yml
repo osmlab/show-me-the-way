@@ -1,0 +1,22 @@
+name: Build and deploy
+on:
+  push:
+    branches:
+      - main
+jobs:
+  Build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v3
+        with:
+          persist-credentials: false
+      - name: Install node modules
+        run: npm ci --no-audit
+      - name: Build pages
+        run: make dist
+      - name: Deploy
+        uses: JamesIves/github-pages-deploy-action@releases/v4
+        with:
+          branch: gh-pages
+          folder: dist
