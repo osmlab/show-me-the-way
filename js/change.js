@@ -84,30 +84,32 @@ class Change {
 
     isRelevant() {
         return new Promise((resolve) => {
-            let relevant = false;
+            let commentRelevance = false;
+            let keyRelevance = false;
             const mapElement = this.neu || this.old;
 
-            if (this.context.comment == "") {
+            if (this.context.comment === "" && !this.context.key) {
                 return resolve(true);
-            }
+            }        
 
             this.fetchChangesetData(mapElement.changeset)
                 .then((changesetData) => {
-                    relevant = (
-                        changesetData.comment &&
-                        changesetData.comment.toLowerCase()
-                            .indexOf(this.context.comment.toLowerCase()) > -1
-                    );
 
-                    if (!relevant) {
+                    commentRelevance = 
+                        this.context.comment !== "" && 
+                        changesetData.comment?.toLowerCase()
+                            .includes(this.context.comment.toLowerCase()) || false;
+
+                    keyRelevance = Object.keys(mapElement.tags).includes(this.context.key);
+
+                    if (!(commentRelevance || keyRelevance)) {
                         console.log(
                             "Skipping map element " + mapElement.id
-                            + " because changeset " + mapElement.changeset
-                            + " didn't match " + this.context.comment
+                            + " because it didn't match filters."
                         );
                     }
 
-                    return resolve(relevant);
+                    return resolve(commentRelevance | keyRelevance);
                 });
         });
     }
