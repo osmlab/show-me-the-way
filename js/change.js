@@ -90,7 +90,7 @@ class Change {
 
             if (this.context.comment === "" && !this.context.key) {
                 return resolve(true);
-            }        
+            }
 
             this.fetchChangesetData(mapElement.changeset)
                 .then((changesetData) => {
