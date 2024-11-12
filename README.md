@@ -23,6 +23,13 @@ Build a bounding box URL using this page: https://osmlab.github.io/show-me-the-w
     - https://osmlab.github.io/show-me-the-way/#comment=missingmaps
     - `comment=missingmaps`, will only show changes where the changeset comment contained missingmaps somewhere
 
+### Filter by feature keys
+
+- key={string}
+- Restrict viewing only edits where the changeset's features include keys equal to a string.
+    - https://osmlab.github.io/show-me-the-way/#key=building
+    - `key=building`, will only show changes where the changeset includes features with the key building
+
 ### Change the playback speed
 
 - runTime={seconds}
