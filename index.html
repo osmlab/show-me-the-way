@@ -3,34 +3,58 @@
 <head>
     <title>Show Me The Way</title>
     <meta charset='utf-8' />
-    <link rel='stylesheet' href='//cdnjs.cloudflare.com/ajax/libs/leaflet/0.5/leaflet.css' />
+    <link rel='stylesheet' href='//unpkg.com/leaflet@1.8.0/dist/leaflet.css' />
     <link rel='stylesheet' href='css/style.css' />
     <link rel='stylesheet' href='css/site.css' />
-    <!--[if lte IE 8]><link rel='stylesheet' href='http://cdn.leafletjs.com/leaflet-0.5/leaflet.ie.css' /><![endif]-->
-    <link href='//fonts.googleapis.com/css?family=Open+Sans:400,700|Open+Sans+Condensed:700' rel='stylesheet' type='text/css'>
-
+    <link rel='stylesheet' href='css/sidebar.css' />
 </head>
 <body>
 <div class='container'>
-    <div class='sq overlay round'>
-        <div id='overview_map'></div>
-        <p class='pad2 change-meta' id='reverse-location'></p>
+    <div id='loading'>
+        <h1>Loading...</h1>
     </div>
-    <div class='overlay align-bottom'>
-        <div class='pad2' id='changeset_info'></div>
-        <p class='pad2 change-meta' id='comment'></p>
+    <div id='main' class='full-height'>
+        <div class='overlay'>
+            <div id='overview_map'></div>
+            <p class='pad2 bold' id='reverse-location'></p>
+        </div>
+        <div id='metadata' class='overlay'>
+            <div class='pad2' id='changeset_info'></div>
+            <p class='pad2 bold' id='comment'></p>
+        </div>
+        <div class='indicator' id='queuesize'></div>
+        <div id='map' class='col12 full-height'></div>
+        <a href='http://openstreetmap.org/' class='byosm'></a>
     </div>
-    <div class='indicator' id='queuesize'></div>
-    <div id='map' class='col12 full-height'></div>
-    <a href='http://openstreetmap.org/' class='byosm'></a>
 </div>
-    <script id='changeset-template' type='template'>
-<% var past_tense = { modify: 'modified', create: 'created', 'delete': 'deleted' }; %>
-<p><a target='_blank' href='//openstreetmap.org/browse/changeset/<%-change.meta.changeset%>'><%-change.timetext%></a> <a target='_blank' href='//openstreetmap.org/user/<%- change.meta.user %>'><%- change.meta.user %></a>
-     <%- past_tense[change.type] %> <a target='_blank' href='//openstreetmap.org/browse/<%- change.meta.type %>/<%- change.meta.id %>'><%- change.tagtext %></a>
+<div class="sidebar">
+    <h1>Parameters</h1>
+    <form id="settings-form">
+        <label>Playback speed
+            <input type="range" name="runTime" min="-10" max="-2" />
+        </label>
+        <label>Changeset comment filter
+            <input type="text" name="comment" />
+        </label>
+    </form>
+    <p>
+        <a href="bbox.html" id="bbox-link" class="bbox-link">Bounding box filter →</a>
     </p>
-    </script>
-    <script src='//cdnjs.cloudflare.com/ajax/libs/leaflet/0.5/leaflet.js'></script>
+</div>
+<div class="sidebar-button" id="sidebar-button">
+    <button class="show-sidebar-button">
+        ☰
+    </button>
+    <button class="hide-sidebar-button">
+        ←
+    </button>
+</div>
+    <template id='changeset-template'>
+<p><a target='_blank' href='//openstreetmap.org/browse/changeset/{{meta.changeset}}'>{{meta.timetext}}</a> <a target='_blank' href='//openstreetmap.org/user/{{meta.user}}'>{{meta.user}}</a>
+     {{meta.action}} <a target='_blank' href='//openstreetmap.org/browse/{{meta.type}}/{{meta.id}}'>{{tagText}}</a>
+</p>
+    </template>
+    <script src='//unpkg.com/leaflet@1.8.0/dist/leaflet.js'></script>
     <script src='js/bundle.js'></script>
 </body>
 </html>
