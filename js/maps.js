@@ -11,7 +11,8 @@ class Maps {
             dragging: false,
             scrollWheelZoom: false,
             doubleClickZoom: false,
-            boxZoom: false
+            boxZoom: false,
+            zoomSnap: 0
         });
 
         if (filteredBbox) {
@@ -76,6 +77,81 @@ class Maps {
         this.overviewMap.attributionControl.setPrefix(false);
 
         this.featureGroup = L.featureGroup().addTo(this.main);
+
+        this.setupAdaptiveColor();
+    }
+
+    setupAdaptiveColor() {
+        this.adaptiveColorSamples = [];
+        this.sampleCanvas = document.createElement('canvas');
+        this.sampleCtx = this.sampleCanvas.getContext('2d', { willReadFrequently: true });
+        this.adaptiveUpdatePending = false;
+        this.tileCounter = 0;
+
+        // Create a background div behind the map for adaptive color
+        const mapContainer = this.main.getContainer();
+        this.adaptiveBgDiv = document.createElement('div');
+        this.adaptiveBgDiv.className = 'adaptive-bg';
+        mapContainer.insertBefore(this.adaptiveBgDiv, mapContainer.firstChild);
+
+        this.mainTileLayer.on('tileload', (e) => this.onTileLoad(e));
+    }
+
+    onTileLoad(e) {
+        this.tileCounter++;
+        // sample every 5th tile
+        if (this.tileCounter % 5 !== 0) return;
+
+        const tile = e.tile;
+
+        try {
+            const w = tile.naturalWidth || tile.width;
+            const h = tile.naturalHeight || tile.height;
+
+            // only resize canvas if dimensions changed (resizing is expensive)
+            if (this.sampleCanvas.width !== w || this.sampleCanvas.height !== h) {
+                this.sampleCanvas.width = w;
+                this.sampleCanvas.height = h;
+            }
+            this.sampleCtx.drawImage(tile, 0, 0);
+
+            // sample 1 random point per tile
+            const x = Math.floor(Math.random() * w);
+            const y = Math.floor(Math.random() * h);
+            const pixel = this.sampleCtx.getImageData(x, y, 1, 1).data;
+            this.adaptiveColorSamples.push({ r: pixel[0], g: pixel[1], b: pixel[2] });
+
+            // keep the last 20 samples
+            if (this.adaptiveColorSamples.length > 20) {
+                this.adaptiveColorSamples = this.adaptiveColorSamples.slice(-20);
+            }
+
+            this.updateAdaptiveColor();
+        } catch (err) {
+            console.log('Could not sample tile color:', err.message);
+        }
+    }
+
+    updateAdaptiveColor() {
+        if (this.adaptiveColorSamples.length === 0 || this.adaptiveUpdatePending) return;
+
+        this.adaptiveUpdatePending = true;
+        requestAnimationFrame(() => {
+            const sum = this.adaptiveColorSamples.reduce(
+                (acc, c) => ({ r: acc.r + c.r, g: acc.g + c.g, b: acc.b + c.b }),
+                { r: 0, g: 0, b: 0 }
+            );
+
+            const count = this.adaptiveColorSamples.length;
+            const r = Math.round(sum.r / count);
+            const g = Math.round(sum.g / count);
+            const b = Math.round(sum.b / count);
+
+            // apply to map background
+            this.adaptiveBgDiv.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
+
+            this.adaptiveUpdatePending = false;
+        });
     }
 
     pruneMapElements() {
@@ -95,13 +171,16 @@ class Maps {
 
     drawMapElement(change, cb) {
         this.pruneMapElements();
-        this.main.fitBounds(change.meta.bounds);
+        this.main.fitBounds(change.meta.bounds, {
+            padding: [10, 10], // reduced from default of 20, 20
+            easeLinearity: 1 // less bouncy
+        });
         this.overviewMap.panTo(change.meta.bounds.getCenter());
 
         const color = {
-            create: '#B7FF00',
-            modify: '#FF00EA',
-            delete: '#FF0000'
+            create: '#B7FF00', // green
+            modify: '#FF00EA', // pink
+            delete: '#FF0000' // red
         }[change.type];
 
         const drawTime = this.context.runTime * 0.7;
