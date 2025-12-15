@@ -8,7 +8,7 @@ dist:
 	mkdir -p dist/js/locationfilter/src
 	cp -vp js/bundle.js dist/js
 	cp -vupR js/locationfilter/src/img js/locationfilter/src/locationfilter.* dist/js/locationfilter/src
-	cp -vupR *.html css chromecast dist
+	cp -vupR *.html css dist
 
 clean:
 	rm -fv js/bundle.js
