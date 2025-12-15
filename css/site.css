@@ -1,5 +1,5 @@
 :root {
-    --backgroundColor: rgba(0,0,0,0.75);
+    --backgroundColor: rgba(0,0,0,0.9);
     --mainFontColor: rgba(255,255,255,1);
     --yellow: #FFEEB2;
     --fadeTransition: all 0.5s cubic-bezier(0.22, 0.61, 0.36, 1);
