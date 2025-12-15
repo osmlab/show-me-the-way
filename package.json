@@ -34,7 +34,8 @@
       "L": "readonly"
     },
     "parserOptions": {
-      "sourceType": "module"
+      "sourceType": "module",
+      "ecmaVersion": "2020"
     },
     "rules": {
       "camelcase": 2,
