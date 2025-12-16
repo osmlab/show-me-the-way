@@ -27,30 +27,41 @@ import { GeocodeService } from './geocode-service';
 function init(windowLocationObj) {
     const ui = new Ui();
 
-    // get user params from the url
+    // Get user params from the url
     const hashParams = new URLSearchParams(windowLocationObj.hash.replace('#', ''));
     const params = Object.fromEntries(hashParams);
 
-    // override default config with user params where applicable
+    // Override default config with user params where applicable
     const context = setContext(params);
 
-    // initialize shared state
+    // Initialize shared state
     let queue = [];
     const bbox = makeBbox(context.bounds);
 
-    // Filter function for processing diffs (cached or fresh)
-    const filterAndSort = (data) => {
-        return data
+    // Filter and group changes by changeset for efficient playback
+    const filterAndGroup = (data) => {
+        const filtered = data
             .filter(happenedToday)
             .filter(userNotIgnored)
             .filter(acceptableType)
             .filter(hasTags)
             .filter(wayLongEnough)
-            .filter((change) => withinBbox(change, bbox))
-            .sort((a, b) => {
-                return (+new Date((a.neu && a.neu.timestamp)))
-                    - (+new Date((b.neu && b.neu.timestamp)));
-            });
+            .filter((change) => withinBbox(change, bbox));
+
+        // Group by changeset id
+        const byChangeset = new Map();
+        for (const change of filtered) {
+            const changesetId = (change.neu || change.old).changeset;
+            if (!byChangeset.has(changesetId)) {
+                byChangeset.set(changesetId, []);
+            }
+            byChangeset.get(changesetId).push(change);
+        }
+
+        // Flatten back to an array of changes
+        const result = Array.from(byChangeset.values()).flat();
+        console.log(`[Queue] Grouped ${filtered.length} changes into ${byChangeset.size} changesets`);
+        return result;
     };
 
     // Initialize diff service
@@ -59,7 +70,7 @@ function init(windowLocationObj) {
     // Load cached diffs on startup for immediate display
     const cachedDiffs = diffService.getCached();
     if (cachedDiffs.length) {
-        queue = filterAndSort(cachedDiffs);
+        queue = filterAndGroup(cachedDiffs);
         console.log(`Loaded ${queue.length} changes from cached diffs`);
     }
 
@@ -71,37 +82,44 @@ function init(windowLocationObj) {
 
     // Start the diff stream
     diffService.start((data) => {
-        queue = filterAndSort(data);
+        queue = filterAndGroup(data);
     }, requestingBbox);
 
-    // create the maps
+    // Create maps
     const maps = new Maps(context, bbox);
 
-    // setup the sidebar
+    // Setup the sidebar
     const sidebar = new Sidebar(hashParams, windowLocationObj, context);
     sidebar.initializeEventListeners();
 
     // Prefetch configuration
     const PREFETCH_COUNT = 3;
-    const PREFETCH_DELAY_MS = 1000; // Space out requests to avoid rate limiting
-    const prefetchMap = new Map(); // changeKey → Promise<enhancedChange>
+    const PREFETCH_DELAY_MS = 1000;
+    const prefetchMap = new Map();
 
-    // Get unique key for a raw change item
-    function getChangeKey(item) {
-        const element = item.neu || item.old;
-        return `${item.type}-${element.type}-${element.id}-${element.version}`;
+    function getChangesetId(item) {
+        return (item.neu || item.old).changeset;
     }
 
-    // Prefetch enhancement for upcoming queue items
+    // Prefetch first item of upcoming changesets
     function prefetchUpcoming() {
-        // Get next N items from end of queue (they'll be popped next)
-        const upcoming = queue.slice(-PREFETCH_COUNT);
+        const toPrefetch = [];
+        const seenChangesets = new Set();
 
-        upcoming.forEach((item, index) => {
-            const key = getChangeKey(item);
-            if (prefetchMap.has(key)) return; // Already prefetching
+        for (let i = queue.length - 1; i >= 0 && toPrefetch.length < PREFETCH_COUNT; i--) {
+            const item = queue[i];
+            const changesetId = getChangesetId(item);
 
-            // Stagger the requests
+            if (!seenChangesets.has(changesetId)) {
+                seenChangesets.add(changesetId);
+                toPrefetch.push(item);
+            }
+        }
+
+        toPrefetch.forEach((item, index) => {
+            const changesetId = getChangesetId(item);
+            if (prefetchMap.has(changesetId)) return; // Already prefetching
+
             const delay = index * PREFETCH_DELAY_MS;
 
             const prefetchPromise = new Promise((resolve) => {
@@ -119,22 +137,22 @@ function init(windowLocationObj) {
                 }, delay);
             });
 
-            prefetchMap.set(key, prefetchPromise);
-            console.log(`[Prefetch] Started prefetch for ${key} (delay: ${delay}ms)`);
+            prefetchMap.set(changesetId, prefetchPromise);
+            console.log(`[Prefetch] Started prefetch for changeset ${changesetId}`);
         });
     }
 
     function controller() {
         if (queue.length) {
             const item = queue.pop();
-            const key = getChangeKey(item);
+            const changesetId = getChangesetId(item);
             ui.updateQueueSize(queue.length);
 
-            // Check if we have a prefetched result
-            const prefetched = prefetchMap.get(key);
+            // Check if we have a prefetched result for this changeset
+            const prefetched = prefetchMap.get(changesetId);
             if (prefetched) {
-                prefetchMap.delete(key);
-                console.log(`[Prefetch] Using prefetched result for ${key}`);
+                prefetchMap.delete(changesetId);
+                console.log(`[Prefetch] Using prefetched result for changeset ${changesetId}`);
 
                 prefetched.then(({ change, skip }) => {
                     if (skip) {
