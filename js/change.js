@@ -2,6 +2,22 @@ import { makeBbox } from './utils';
 
 import { formatDistanceStrict } from 'date-fns';
 
+// Helper function to calculate distance between two points in meters (Haversine formula)
+function distanceBetween(lat1, lon1, lat2, lon2) {
+    const R = 6371000; // Earth's radius in meters
+    const lat1Rad = lat1 * Math.PI / 180;
+    const lat2Rad = lat2 * Math.PI / 180;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+              Math.cos(lat1Rad) * Math.cos(lat2Rad) *
+              Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    return R * c;
+}
+
 class Change {
     constructor(context, changeObj) {
         this.context = context;
@@ -49,7 +65,7 @@ class Change {
             const CLOSE_THRESHOLD_METERS = 10000;
             const closeByKey = this.context.geocodeCache.keys().find((key) => {
                 const [ lat, lon ] = key.split(',').map(parseFloat);
-                return boundsCenter.distanceTo(L.latLng(lat, lon)) < CLOSE_THRESHOLD_METERS;
+                return distanceBetween(boundsCenter.lat, boundsCenter.lng, lat, lon) < CLOSE_THRESHOLD_METERS;
             });
 
             if (closeByKey) {
@@ -130,6 +146,8 @@ class Change {
     }
 
     enhance() {
+        console.log('Enhancing change, fetching changeset + geocode...');
+        const startTime = Date.now();
         const mapElement = this.type === 'delete' ? this.old : this.neu;
         const bounds = mapElement.type === 'way'
                 ? makeBbox(mapElement.bounds)
@@ -166,10 +184,14 @@ class Change {
             this.fetchChangesetData(this.meta.changeset),
             this.fetchDisplayName(bounds.getCenter()),
         ]).then(([changesetData, displayName]) => {
+            console.log(`Enhance complete in ${Date.now() - startTime}ms`);
             this.meta.comment = changesetData.comment;
             this.meta.createdBy = changesetData.created_by;
             this.meta.displayName = displayName;
             return this;
+        }).catch((err) => {
+            console.error(`Enhance failed after ${Date.now() - startTime}ms:`, err);
+            throw err;
         });
     }
 }
