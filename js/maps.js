@@ -47,29 +47,46 @@ class Maps {
             this.overviewMap.setView(defaultCenter, 4);
         }
 
-        const mapboxKey = 'pk.eyJ1Ijoib3BlbnN0cmVldG1hcHVzIiwiYSI6ImNqdTM1ZWxqe'
-            + 'TBqa2MzeXBhODIxdnE2eG8ifQ.zyhAo181muDzPRdyYsqLGw';
+        const isLocal = window.location.hostname === 'localhost' ||
+            window.location.hostname.startsWith('192');
 
-        /* eslint-disable camelcase */
-        // the style_id property throws off this rule
+        if (isLocal) {
+            this.mainTileLayer = new L.TileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                crossOrigin: 'anonymous'
+            }).addTo(this.main);
 
-        new L.TileLayer(
-            'https://api.mapbox.com/styles/v1/openstreetmapus/{style_id}/tiles/256/{z}/{x}/{y}?access_token={key}', {
-            style_id: 'cju35gljt1bpm1fp2z93dlyca',
-            key: mapboxKey,
-            attribution: '<a href="https://mapbox.com/about/maps/">Terms &amp; Conditions</a>'
-        }).addTo(this.main);
+            new L.TileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                minZoom: 4,
+                maxZoom: 8,
+                attribution: '&copy; <a href="https://openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(this.overviewMap);
+        } else {
+            const mapboxKey = 'pk.eyJ1Ijoib3BlbnN0cmVldG1hcHVzIiwiYSI6ImNqdTM1ZWxqe'
+                + 'TBqa2MzeXBhODIxdnE2eG8ifQ.zyhAo181muDzPRdyYsqLGw';
 
-        new L.TileLayer(
-            'https://api.mapbox.com/styles/v1/openstreetmapus/{style_id}/tiles/256/{z}/{x}/{y}?access_token={key}', {
-            minZoom: 4,
-            maxZoom: 8,
-            style_id: 'cj8xtgojqhd3z2sorzpi01csj',
-            key: mapboxKey,
-            attribution: '<a href="https://mapbox.com/about/maps/">Terms &amp; Conditions</a>'
-        }).addTo(this.overviewMap);
+            /* eslint-disable camelcase */
+            // the style_id property throws off this rule
 
-        /* eslint-enable camelcase */
+            this.mainTileLayer = new L.TileLayer(
+                'https://api.mapbox.com/styles/v1/openstreetmapus/{style_id}/tiles/256/{z}/{x}/{y}?access_token={key}', {
+                style_id: 'cju35gljt1bpm1fp2z93dlyca',
+                key: mapboxKey,
+                attribution: '<a href="https://mapbox.com/about/maps/">Terms &amp; Conditions</a>',
+                crossOrigin: 'anonymous'
+            }).addTo(this.main);
+
+            new L.TileLayer(
+                'https://api.mapbox.com/styles/v1/openstreetmapus/{style_id}/tiles/256/{z}/{x}/{y}?access_token={key}', {
+                minZoom: 4,
+                maxZoom: 8,
+                style_id: 'cj8xtgojqhd3z2sorzpi01csj',
+                key: mapboxKey,
+                attribution: '<a href="https://mapbox.com/about/maps/">Terms &amp; Conditions</a>'
+            }).addTo(this.overviewMap);
+
+            /* eslint-enable camelcase */
+        }
 
         // Remove Leaflet shoutouts
         this.main.attributionControl.setPrefix('');
