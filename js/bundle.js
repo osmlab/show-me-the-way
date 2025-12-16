@@ -4512,7 +4512,8 @@
   var config = {
     "bounds": "-90,-180,90,180",
     "comment": "",
-    "runTime": 2
+    "runTime": 2,
+    "debug": false
   };
 
   // js/maps.js
@@ -4580,6 +4581,37 @@
       this.main.attributionControl.setPrefix("");
       this.overviewMap.attributionControl.setPrefix(false);
       this.featureGroup = L.featureGroup().addTo(this.main);
+      this.debugRect = null;
+      if (this.context.debug) {
+        this.main.on("moveend", () => this.updateDebugRect());
+      }
+    }
+    // Calculate the no-pan zone bounds
+    getNoPanBounds() {
+      const currentBounds = this.main.getBounds();
+      const north = currentBounds.getNorth();
+      const south = currentBounds.getSouth();
+      const east = currentBounds.getEast();
+      const west = currentBounds.getWest();
+      const latHeight = north - south;
+      const lngWidth = east - west;
+      return L.latLngBounds(
+        [south + 0.125 * latHeight, west + 0.125 * lngWidth],
+        [north - 0.05 * latHeight, east - 0.125 * lngWidth]
+      );
+    }
+    updateDebugRect() {
+      const noPanBounds = this.getNoPanBounds();
+      if (this.debugRect) {
+        this.main.removeLayer(this.debugRect);
+      }
+      this.debugRect = L.rectangle(noPanBounds, {
+        color: "#00ffff",
+        weight: 2,
+        fill: false,
+        dashArray: "5, 5",
+        interactive: false
+      }).addTo(this.main);
     }
     pruneMapElements() {
       const visibleBounds = this.main.getBounds();
@@ -4594,7 +4626,12 @@
     }
     drawMapElement(change, cb) {
       this.pruneMapElements();
-      this.main.fitBounds(change.meta.bounds);
+      const noPanBounds = this.getNoPanBounds();
+      if (!noPanBounds.contains(change.meta.bounds)) {
+        this.main.fitBounds(change.meta.bounds);
+      } else if (this.context.debug) {
+        this.updateDebugRect();
+      }
       this.overviewMap.panTo(change.meta.bounds.getCenter());
       const color = {
         create: "#B7FF00",
@@ -5293,6 +5330,7 @@
     const context = Object.assign({}, config, obj);
     context.bounds = context.bounds.split(",");
     context.runTime = 1e3 * context.runTime;
+    context.debug = context.debug === "true" || context.debug === true;
     context.changesetCache = (0, import_lru_cache.default)(50);
     context.geocodeCache = (0, import_lru_cache.default)(200);
     return context;
