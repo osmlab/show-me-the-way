@@ -28,22 +28,39 @@ class ChangesetService {
     }
 
     saveToStorage() {
+        // Defer to idle time to avoid blocking UI
+        const doSave = () => {
+            try {
+                const data = JSON.stringify(this.cache.dump());
+                localStorage.setItem(STORAGE_KEY, data);
+                console.log(`[ChangesetService] Saved ${this.cache.length} entries to cache`);
+            } catch (err) {
+                console.warn('[ChangesetService] Failed to save cache:', err.message);
+            }
+        };
+
+        if (typeof requestIdleCallback !== 'undefined') {
+            requestIdleCallback(doSave, { timeout: 10000 });
+        } else {
+            setTimeout(doSave, 0);
+        }
+    }
+
+    saveToStorageSync() {
+        // Synchronous version for beforeunload (can't use async there)
         try {
             const data = JSON.stringify(this.cache.dump());
             localStorage.setItem(STORAGE_KEY, data);
-            console.log(`[ChangesetService] Saved ${this.cache.length} entries to cache`);
         } catch (err) {
-            console.warn('[ChangesetService] Failed to save cache:', err.message);
+            // Ignore errors on unload
         }
     }
 
     startPersisting() {
         if (this.persistIntervalId) return;
 
-        const persist = () => this.saveToStorage();
-
-        this.persistIntervalId = setInterval(persist, PERSIST_INTERVAL_MS);
-        window.addEventListener('beforeunload', persist);
+        this.persistIntervalId = setInterval(() => this.saveToStorage(), PERSIST_INTERVAL_MS);
+        window.addEventListener('beforeunload', () => this.saveToStorageSync());
     }
 
     stopPersisting() {
