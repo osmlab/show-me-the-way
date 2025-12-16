@@ -1,4 +1,4 @@
-import { makeBbox } from './utils';
+import { makeBbox, fetchWithRetry } from './utils';
 
 import { formatDistanceStrict } from 'date-fns';
 
@@ -24,78 +24,69 @@ class Change {
         Object.assign(this, changeObj);
     }
 
-    fetchChangesetData(id) {
-        return new Promise((resolve, reject) => {
-            const cachedData = this.context.changesetCache.get(id);
-            if (cachedData) {
-                return resolve(cachedData);
-            }
+    async fetchChangesetData(id) {
+        const cachedData = this.context.changesetCache.get(id);
+        if (cachedData) {
+            return cachedData;
+        }
 
-            fetch(`//www.openstreetmap.org/api/0.6/changeset/${id}`, {
-                mode: 'cors'
-            })
-            .then((response) => response.text())
-            .then((responseString) => {
-                return new window.DOMParser()
-                    .parseFromString(responseString, 'text/xml');
-            })
-            .then((data) => {
-                const changesetData = {};
-                const tags = data.getElementsByTagName('tag');
+        const response = await fetchWithRetry(
+            `//www.openstreetmap.org/api/0.6/changeset/${id}`,
+            { mode: 'cors' },
+            { timeout: 5000, retries: 2 }
+        );
+        const responseString = await response.text();
+        const data = new window.DOMParser()
+            .parseFromString(responseString, 'text/xml');
 
-                for (let i = 0; i < tags.length; i++) {
-                    const key = tags[i].getAttribute('k');
-                    const value = tags[i].getAttribute('v');
-                    changesetData[key] = value;
-                }
+        const changesetData = {};
+        const tags = data.getElementsByTagName('tag');
 
-                this.context.changesetCache.set(id, changesetData);
+        for (let i = 0; i < tags.length; i++) {
+            const key = tags[i].getAttribute('k');
+            const value = tags[i].getAttribute('v');
+            changesetData[key] = value;
+        }
 
-                resolve(changesetData);
-            })
-            .catch((err) => {
-                console.log('Error fetching changeset data', err);
-                reject(err);
-            });
-        });
+        this.context.changesetCache.set(id, changesetData);
+        return changesetData;
     }
 
-    fetchDisplayName(boundsCenter) {
-        return new Promise((resolve, reject) => {
-            const CLOSE_THRESHOLD_METERS = 10000;
-            const closeByKey = this.context.geocodeCache.keys().find((key) => {
-                const [ lat, lon ] = key.split(',').map(parseFloat);
-                return distanceBetween(boundsCenter.lat, boundsCenter.lng, lat, lon) < CLOSE_THRESHOLD_METERS;
-            });
-
-            if (closeByKey) {
-                const cachedGeocode = this.context.geocodeCache.get(closeByKey);
-                if (cachedGeocode) {
-                    return resolve(cachedGeocode);
-                }
-            }
-
-            const lat = boundsCenter.lat;
-            const lon = boundsCenter.lng;
-
-            const nominatimUrl = `//nominatim.openstreetmap.org/reverse`
-                + `?format=json&lat=${lat}&lon=${lon}&zoom=5`;
-
-            fetch(nominatimUrl, {
-                mode: 'cors'
-            })
-                .then((response) => response.json())
-                .then((data) => {
-                    const id = `${lat},${lon}`;
-                    const displayName = data.display_name;
-                    this.context.geocodeCache.set(id, displayName);
-                    resolve(displayName);
-                })
-                .catch((err) => {
-                    console.error('Error fetching location', err);
-                    reject(err);
-                });
+    async fetchDisplayName(boundsCenter) {
+        const CLOSE_THRESHOLD_METERS = 10000;
+        const closeByKey = this.context.geocodeCache.keys().find((key) => {
+            const [lat, lon] = key.split(',').map(parseFloat);
+            return distanceBetween(boundsCenter.lat, boundsCenter.lng, lat, lon) < CLOSE_THRESHOLD_METERS;
         });
+
+        if (closeByKey) {
+            const cachedGeocode = this.context.geocodeCache.get(closeByKey);
+            if (cachedGeocode) {
+                return cachedGeocode;
+            }
+        }
+
+        const lat = boundsCenter.lat;
+        const lon = boundsCenter.lng;
+
+        const nominatimUrl = `//nominatim.openstreetmap.org/reverse`
+            + `?format=json&lat=${lat}&lon=${lon}&zoom=5`;
+
+        try {
+            const response = await fetchWithRetry(
+                nominatimUrl,
+                { mode: 'cors' },
+                { timeout: 5000, retries: 2 }
+            );
+            const data = await response.json();
+            const id = `${lat},${lon}`;
+            const displayName = data.display_name;
+            this.context.geocodeCache.set(id, displayName);
+            return displayName;
+        } catch (err) {
+            console.warn('Failed to fetch location after retries:', err.message);
+            return null; // Graceful fallback
+        }
     }
 
     isRelevant() {
@@ -145,7 +136,7 @@ class Change {
         return 'a ' + mapElement.type;
     }
 
-    enhance() {
+    async enhance() {
         console.log('Enhancing change, fetching changeset + geocode...');
         const startTime = Date.now();
         const mapElement = this.type === 'delete' ? this.old : this.neu;
@@ -180,19 +171,16 @@ class Change {
 
         this.tagText = this.createTagText();
 
-        return Promise.all([
+        const [changesetData, displayName] = await Promise.all([
             this.fetchChangesetData(this.meta.changeset),
             this.fetchDisplayName(bounds.getCenter()),
-        ]).then(([changesetData, displayName]) => {
-            console.log(`Enhance complete in ${Date.now() - startTime}ms`);
-            this.meta.comment = changesetData.comment;
-            this.meta.createdBy = changesetData.created_by;
-            this.meta.displayName = displayName;
-            return this;
-        }).catch((err) => {
-            console.error(`Enhance failed after ${Date.now() - startTime}ms:`, err);
-            throw err;
-        });
+        ]);
+
+        console.log(`Enhance complete in ${Date.now() - startTime}ms`);
+        this.meta.comment = changesetData.comment || '';
+        this.meta.createdBy = changesetData.created_by || '';
+        this.meta.displayName = displayName || '';
+        return this;
     }
 }
 

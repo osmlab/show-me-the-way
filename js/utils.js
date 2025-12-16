@@ -33,3 +33,34 @@ export function isBboxSizeAcceptable(bbox) {
     // ...and we process it client-side as usual.
     return (width * height) < 2;
 }
+
+/**
+ * Fetch with timeout and retry logic
+ * @param {string} url - URL to fetch
+ * @param {Object} options - fetch options (mode, headers, etc.)
+ * @param {Object} config - retry configuration
+ * @param {number} config.timeout - request timeout in ms (default: 5000)
+ * @param {number} config.retries - number of retries (default: 2)
+ * @param {number} config.backoff - base backoff time in ms (default: 1000)
+ * @returns {Promise<Response>} - fetch response
+ */
+export async function fetchWithRetry(url, options = {}, config = {}) {
+    const { timeout = 5000, retries = 2, backoff = 1000 } = config;
+
+    for (let attempt = 0; attempt <= retries; attempt++) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+        try {
+            const response = await fetch(url, { ...options, signal: controller.signal });
+            clearTimeout(timeoutId);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            return response;
+        } catch (err) {
+            clearTimeout(timeoutId);
+            if (attempt === retries) throw err;
+            // Exponential backoff: 1s, 2s, 3s...
+            await new Promise((r) => setTimeout(r, backoff * (attempt + 1)));
+        }
+    }
+}

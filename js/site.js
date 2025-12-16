@@ -76,6 +76,9 @@ function init(windowLocationObj) {
                     change.enhance().then(() => {
                         ui.update(change);
                         maps.drawMapElement(change, controller);
+                    }).catch((err) => {
+                        console.warn('Skipping change due to enhance failure:', err.message);
+                        controller();
                     });
                 } else {
                     controller();
