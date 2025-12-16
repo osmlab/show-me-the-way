@@ -79,10 +79,17 @@ class GeocodeService {
         const lon = boundsCenter.lng;
         const key = `${lat.toFixed(2)},${lon.toFixed(2)}`; // Round to ~1.1km resolution
 
-        // Check for nearby cached result
+        // Check for exact cache hit (includes cached failures as null)
+        if (this.cache.has(key)) {
+            const cached = this.cache.get(key);
+            console.log(`[GeocodeService] Cache hit for ${key}: ${cached ? 'found' : 'cached failure'}`);
+            return cached;
+        }
+
+        // Check for nearby cached result (only for successful lookups)
         const nearbyCached = this.findNearbyCache(lat, lon);
         if (nearbyCached) {
-            console.log(`[GeocodeService] Cache hit (nearby) for ${lat.toFixed(2)},${lon.toFixed(2)}`);
+            console.log(`[GeocodeService] Cache hit (nearby) for ${key}`);
             return nearbyCached;
         }
 
@@ -92,7 +99,7 @@ class GeocodeService {
             return this.inFlight.get(key);
         }
 
-        console.log(`[GeocodeService] Cache miss, fetching ${lat.toFixed(2)},${lon.toFixed(2)}`);
+        console.log(`[GeocodeService] Cache miss, fetching ${key}`);
 
         // Create and track the fetch promise
         const fetchPromise = this.fetchGeocode(lat, lon);
@@ -126,6 +133,9 @@ class GeocodeService {
             return displayName;
         } catch (err) {
             console.warn('[GeocodeService] Failed to fetch location after retries:', err.message);
+            // Cache the failure so we don't retry the same coords repeatedly
+            const id = `${roundedLat},${roundedLon}`;
+            this.cache.set(id, null);
             return null; // Graceful fallback
         }
     }
