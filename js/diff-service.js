@@ -1,6 +1,7 @@
 import osmStream from 'osm-stream';
 
-const STORAGE_KEY = 'smtw-diffs';
+const DB_NAME = 'smtw-diffs';
+const STORE_NAME = 'diffs';
 const MAX_STORED_ENTRIES = 10;
 const TTL_MS = 10 * 60 * 1000; // 10 minutes
 const CULL_INTERVAL_MS = 60 * 1000; // 1 minute
@@ -10,6 +11,86 @@ class DiffService {
     constructor() {
         this.cullIntervalId = null;
         this.streamHandle = null;
+        this.db = null;
+        this.memoryCache = []; // In-memory cache for sync access
+    }
+
+    async init() {
+        await this.openDatabase();
+        await this.loadFromDB();
+    }
+
+    openDatabase() {
+        return new Promise((resolve, reject) => {
+            const request = indexedDB.open(DB_NAME, 1);
+
+            request.onerror = () => {
+                console.warn('[DiffService] Failed to open IndexedDB:', request.error);
+                reject(request.error);
+            };
+
+            request.onsuccess = () => {
+                this.db = request.result;
+                console.log('[DiffService] IndexedDB opened');
+                resolve();
+            };
+
+            request.onupgradeneeded = (event) => {
+                const db = event.target.result;
+                if (!db.objectStoreNames.contains(STORE_NAME)) {
+                    db.createObjectStore(STORE_NAME, { keyPath: 'key' });
+                    console.log('[DiffService] Created IndexedDB store');
+                }
+            };
+        });
+    }
+
+    async loadFromDB() {
+        if (!this.db) return;
+
+        return new Promise((resolve) => {
+            const transaction = this.db.transaction([STORE_NAME], 'readonly');
+            const store = transaction.objectStore(STORE_NAME);
+            const request = store.getAll();
+
+            request.onsuccess = () => {
+                this.memoryCache = request.result || [];
+                if (this.memoryCache.length) {
+                    console.log(`[DiffService] Loaded ${this.memoryCache.length} entries from IndexedDB`);
+                }
+                resolve();
+            };
+
+            request.onerror = () => {
+                console.warn('[DiffService] Failed to load from IndexedDB:', request.error);
+                resolve();
+            };
+        });
+    }
+
+    async saveToDB(entries) {
+        if (!this.db) return;
+
+        return new Promise((resolve) => {
+            const transaction = this.db.transaction([STORE_NAME], 'readwrite');
+            const store = transaction.objectStore(STORE_NAME);
+
+            // Clear and rewrite all entries
+            store.clear();
+            for (const entry of entries) {
+                store.put(entry);
+            }
+
+            transaction.oncomplete = () => {
+                console.log(`[DiffService] Saved ${entries.length} entries to IndexedDB`);
+                resolve();
+            };
+
+            transaction.onerror = () => {
+                console.warn('[DiffService] Failed to save to IndexedDB:', transaction.error);
+                resolve();
+            };
+        });
     }
 
     start(onData, bbox = null) {
@@ -41,19 +122,18 @@ class DiffService {
     }
 
     /**
-     * Get all valid (non-expired) cached diff data
+     * Get all valid (non-expired) cached diff data (sync, from memory)
      */
     getCached() {
         const now = Date.now();
-        const entries = this.load();
 
-        const validEntries = entries.filter((entry) => {
+        const validEntries = this.memoryCache.filter((entry) => {
             const entryTime = new Date(entry.key).getTime();
             return (now - entryTime) < TTL_MS;
         });
 
         if (validEntries.length) {
-            console.log(`Found ${validEntries.length} valid cached diffs`);
+            console.log(`[DiffService] Found ${validEntries.length} valid cached diffs`);
         }
 
         return validEntries.flatMap((entry) => entry.data);
@@ -68,21 +148,21 @@ class DiffService {
         const key = this.getTimestamp(data);
         if (!key) return;
 
-        let entries = this.load();
-
         // Don't cache if already exists
-        if (entries.some((e) => e.key === key)) return;
+        if (this.memoryCache.some((e) => e.key === key)) return;
 
         // Add new entry
-        entries.push({ key, data });
+        this.memoryCache.push({ key, data });
 
         // Keep only last N entries
-        if (entries.length > MAX_STORED_ENTRIES) {
-            entries = entries.slice(-MAX_STORED_ENTRIES);
+        if (this.memoryCache.length > MAX_STORED_ENTRIES) {
+            this.memoryCache = this.memoryCache.slice(-MAX_STORED_ENTRIES);
         }
 
-        this.save(entries);
-        console.log(`Cached diff with key ${key}, total entries: ${entries.length}`);
+        console.log(`[DiffService] Cached diff with key ${key}, total entries: ${this.memoryCache.length}`);
+
+        // Persist to IndexedDB in background
+        this.saveToDB(this.memoryCache);
     }
 
     /**
@@ -90,46 +170,16 @@ class DiffService {
      */
     cull() {
         const now = Date.now();
-        let entries = this.load();
-        const before = entries.length;
+        const before = this.memoryCache.length;
 
-        entries = entries.filter((entry) => {
+        this.memoryCache = this.memoryCache.filter((entry) => {
             const entryTime = new Date(entry.key).getTime();
             return (now - entryTime) < TTL_MS;
         });
 
-        if (entries.length !== before) {
-            this.save(entries);
-            console.log(`Culled ${before - entries.length} expired diffs`);
-        }
-    }
-
-    /**
-     * Load all cached entries from localStorage
-     */
-    load() {
-        try {
-            const stored = localStorage.getItem(STORAGE_KEY);
-            if (stored) {
-                const entries = JSON.parse(stored);
-                console.log(`[DiffService] Loaded ${entries.length} entries from cache`);
-                return entries;
-            }
-        } catch (err) {
-            console.warn('[DiffService] Failed to load cache:', err.message);
-        }
-        return [];
-    }
-
-    /**
-     * Save entries to localStorage
-     */
-    save(entries) {
-        try {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
-            console.log(`[DiffService] Saved ${entries.length} entries to cache`);
-        } catch (err) {
-            console.warn('[DiffService] Failed to save cache:', err.message);
+        if (this.memoryCache.length !== before) {
+            console.log(`[DiffService] Culled ${before - this.memoryCache.length} expired diffs`);
+            this.saveToDB(this.memoryCache);
         }
     }
 

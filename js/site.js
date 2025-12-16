@@ -58,21 +58,17 @@ function init(windowLocationObj) {
             byChangeset.get(changesetId).push(change);
         }
 
-        // Flatten back to an array of changes
-        const result = Array.from(byChangeset.values()).flat();
-        console.log(`[Queue] Grouped ${filtered.length} changes into ${byChangeset.size} changesets`);
+        // Sort by size: smallest first, largest last (so largest get popped first)
+        const sortedGroups = Array.from(byChangeset.values())
+            .sort((a, b) => a.length - b.length);
+
+        const result = sortedGroups.flat();
+        console.log(`[Queue] Grouped ${filtered.length} changes into ${byChangeset.size} changesets (largest: ${sortedGroups[sortedGroups.length - 1]?.length || 0} items)`);
         return result;
     };
 
-    // Initialize diff service
+    // Initialize diff service and load cached diffs
     const diffService = new DiffService();
-
-    // Load cached diffs on startup for immediate display
-    const cachedDiffs = diffService.getCached();
-    if (cachedDiffs.length) {
-        queue = filterAndGroup(cachedDiffs);
-        console.log(`Loaded ${queue.length} changes from cached diffs`);
-    }
 
     // see commit 1e4e19b265247a95a20ab11daec78fcfba1920ff for the logic here
     // in short, if an area is too large (2 degrees) the server response will be slow or error
@@ -80,10 +76,25 @@ function init(windowLocationObj) {
     const requestingBbox = (context.bounds != config.bounds) && isBboxSizeAcceptable(bbox)
         ? makeBboxString(makeBbox(context.bounds)) : null;
 
-    // Start the diff stream
-    diffService.start((data) => {
-        queue = filterAndGroup(data);
-    }, requestingBbox);
+    // Initialize IndexedDB and load cached diffs, then start streaming
+    diffService.init().then(() => {
+        const cachedDiffs = diffService.getCached();
+        if (cachedDiffs.length) {
+            queue = filterAndGroup(cachedDiffs);
+            console.log(`Loaded ${queue.length} changes from cached diffs`);
+        }
+
+        // Start the diff stream
+        diffService.start((data) => {
+            queue = filterAndGroup(data);
+        }, requestingBbox);
+    }).catch((err) => {
+        console.warn('[DiffService] Init failed, starting without cache:', err);
+        // Start streaming anyway without cached data
+        diffService.start((data) => {
+            queue = filterAndGroup(data);
+        }, requestingBbox);
+    });
 
     // Create maps
     const maps = new Maps(context, bbox);
@@ -119,6 +130,7 @@ function init(windowLocationObj) {
         toPrefetch.forEach((item, index) => {
             const changesetId = getChangesetId(item);
             if (prefetchMap.has(changesetId)) return; // Already prefetching
+            if (context.changesetService.cache.has(changesetId)) return; // Already cached
 
             const delay = index * PREFETCH_DELAY_MS;
 
