@@ -93,6 +93,45 @@ class Maps {
         this.overviewMap.attributionControl.setPrefix(false);
 
         this.featureGroup = L.featureGroup().addTo(this.main);
+
+        // Debug rectangle for visualizing the no-pan zone
+        this.debugRect = null;
+        if (this.context.debug) {
+            this.main.on('moveend', () => this.updateDebugRect());
+        }
+    }
+
+    // Calculate the no-pan zone bounds
+    getNoPanBounds() {
+        const currentBounds = this.main.getBounds();
+        const north = currentBounds.getNorth();
+        const south = currentBounds.getSouth();
+        const east = currentBounds.getEast();
+        const west = currentBounds.getWest();
+
+        const latHeight = north - south;
+        const lngWidth = east - west;
+
+        // Intentionally leave more padding on the bottom to account for the larger overlay element
+        return L.latLngBounds(
+            [south + 0.125 * latHeight, west + 0.125 * lngWidth],
+            [north - 0.05 * latHeight, east - 0.125 * lngWidth]
+        );
+    }
+
+    updateDebugRect() {
+        const noPanBounds = this.getNoPanBounds();
+
+        if (this.debugRect) {
+            this.main.removeLayer(this.debugRect);
+        }
+        this.debugRect = L.rectangle(noPanBounds, {
+            color: '#00ffff',
+            weight: 2,
+            fill: false,
+            dashArray: '5, 5',
+            interactive: false
+        }).addTo(this.main);
     }
 
     pruneMapElements() {
@@ -112,7 +151,17 @@ class Maps {
 
     drawMapElement(change, cb) {
         this.pruneMapElements();
-        this.main.fitBounds(change.meta.bounds);
+
+        const noPanBounds = this.getNoPanBounds();
+
+        // Only pan if the change bounds are not within the no-pan zone
+        if (!noPanBounds.contains(change.meta.bounds)) {
+            this.main.fitBounds(change.meta.bounds);
+        } else if (this.context.debug) {
+            // No pan happening, so manually update debug rect
+            this.updateDebugRect();
+        }
+
         this.overviewMap.panTo(change.meta.bounds.getCenter());
 
         const color = {

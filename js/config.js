@@ -3,5 +3,6 @@
 export const config = {
     'bounds': '-90,-180,90,180',
     'comment': '',
-    'runTime': 2
+    'runTime': 2,
+    'debug': false
 };
