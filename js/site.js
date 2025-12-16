@@ -20,57 +20,9 @@ import {
     withinBbox
 } from './filters';
 
-import osmStream from 'osm-stream';
-import LRU from 'lru-cache';
-
-const STORAGE_KEYS = {
-    changesets: 'smtw-changesets',
-    geocodes: 'smtw-geocodes'
-};
-
-const CACHE_SIZES = {
-    changesets: 500,
-    geocodes: 2000
-};
-
-const PERSIST_INTERVAL_MS = 30000;
-
-function loadCacheFromStorage(key, maxSize) {
-    try {
-        const stored = localStorage.getItem(key);
-        if (stored) {
-            const cache = LRU(maxSize);
-            cache.load(JSON.parse(stored));
-            console.log(`Loaded ${cache.length} entries from ${key}`);
-            return cache;
-        }
-    } catch (err) {
-        console.warn(`Failed to load cache from ${key}:`, err.message);
-    }
-    return LRU(maxSize);
-}
-
-function saveCacheToStorage(cache, key) {
-    try {
-        const data = JSON.stringify(cache.dump());
-        localStorage.setItem(key, data);
-    } catch (err) {
-        console.warn(`Failed to save cache to ${key}:`, err.message);
-    }
-}
-
-function setupCachePersistence(context) {
-    const persistCaches = () => {
-        saveCacheToStorage(context.changesetCache, STORAGE_KEYS.changesets);
-        saveCacheToStorage(context.geocodeCache, STORAGE_KEYS.geocodes);
-    };
-
-    // Persist every 30 seconds
-    setInterval(persistCaches, PERSIST_INTERVAL_MS);
-
-    // Persist on page unload
-    window.addEventListener('beforeunload', persistCaches);
-}
+import { DiffService } from './diff-service';
+import { ChangesetService } from './changeset-service';
+import { GeocodeService } from './geocode-service';
 
 function init(windowLocationObj) {
     const ui = new Ui();
@@ -86,16 +38,9 @@ function init(windowLocationObj) {
     let queue = [];
     const bbox = makeBbox(context.bounds);
 
-    // see commit 1e4e19b265247a95a20ab11daec78fcfba1920ff for the logic here
-    // in short, if an area is too large (2 degrees) the server response will be slow or error
-    // in that case, make a request with no bounds and filter the content client-side
-    const requestingBbox = (context.bounds != config.bounds) && isBboxSizeAcceptable(bbox)
-        ? makeBboxString(makeBbox(context.bounds)) : null;
-
-    // start the data loop
-    const maxDiffRetries = 2;
-    osmStream.runFn((err, data) => {
-        queue = data
+    // Filter function for processing diffs (cached or fresh)
+    const filterAndSort = (data) => {
+        return data
             .filter(happenedToday)
             .filter(userNotIgnored)
             .filter(acceptableType)
@@ -106,7 +51,28 @@ function init(windowLocationObj) {
                 return (+new Date((a.neu && a.neu.timestamp)))
                     - (+new Date((b.neu && b.neu.timestamp)));
             });
-    }, null, null, requestingBbox, maxDiffRetries);
+    };
+
+    // Initialize diff service
+    const diffService = new DiffService();
+
+    // Load cached diffs on startup for immediate display
+    const cachedDiffs = diffService.getCached();
+    if (cachedDiffs.length) {
+        queue = filterAndSort(cachedDiffs);
+        console.log(`Loaded ${queue.length} changes from cached diffs`);
+    }
+
+    // see commit 1e4e19b265247a95a20ab11daec78fcfba1920ff for the logic here
+    // in short, if an area is too large (2 degrees) the server response will be slow or error
+    // in that case, make a request with no bounds and filter the content client-side
+    const requestingBbox = (context.bounds != config.bounds) && isBboxSizeAcceptable(bbox)
+        ? makeBboxString(makeBbox(context.bounds)) : null;
+
+    // Start the diff stream
+    diffService.start((data) => {
+        queue = filterAndSort(data);
+    }, requestingBbox);
 
     // create the maps
     const maps = new Maps(context, bbox);
@@ -115,30 +81,98 @@ function init(windowLocationObj) {
     const sidebar = new Sidebar(hashParams, windowLocationObj, context);
     sidebar.initializeEventListeners();
 
+    // Prefetch configuration
+    const PREFETCH_COUNT = 3;
+    const PREFETCH_DELAY_MS = 1000; // Space out requests to avoid rate limiting
+    const prefetchMap = new Map(); // changeKey → Promise<enhancedChange>
+
+    // Get unique key for a raw change item
+    function getChangeKey(item) {
+        const element = item.neu || item.old;
+        return `${item.type}-${element.type}-${element.id}-${element.version}`;
+    }
+
+    // Prefetch enhancement for upcoming queue items
+    function prefetchUpcoming() {
+        // Get next N items from end of queue (they'll be popped next)
+        const upcoming = queue.slice(-PREFETCH_COUNT);
+
+        upcoming.forEach((item, index) => {
+            const key = getChangeKey(item);
+            if (prefetchMap.has(key)) return; // Already prefetching
+
+            // Stagger the requests
+            const delay = index * PREFETCH_DELAY_MS;
+
+            const prefetchPromise = new Promise((resolve) => {
+                setTimeout(() => {
+                    const change = new Change(context, item);
+                    change.isRelevant().then((isRelevant) => {
+                        if (!isRelevant) {
+                            resolve({ change, skip: true });
+                            return;
+                        }
+                        change.enhance()
+                            .then(() => resolve({ change, skip: false }))
+                            .catch(() => resolve({ change, skip: true }));
+                    });
+                }, delay);
+            });
+
+            prefetchMap.set(key, prefetchPromise);
+            console.log(`[Prefetch] Started prefetch for ${key} (delay: ${delay}ms)`);
+        });
+    }
+
     function controller() {
         if (queue.length) {
-            const change = new Change(context, queue.pop());
+            const item = queue.pop();
+            const key = getChangeKey(item);
             ui.updateQueueSize(queue.length);
 
-            change.isRelevant().then((isRelevant) => {
-                if (isRelevant) {
-                    change.enhance().then(() => {
+            // Check if we have a prefetched result
+            const prefetched = prefetchMap.get(key);
+            if (prefetched) {
+                prefetchMap.delete(key);
+                console.log(`[Prefetch] Using prefetched result for ${key}`);
+
+                prefetched.then(({ change, skip }) => {
+                    if (skip) {
+                        controller();
+                    } else {
                         ui.update(change);
                         maps.drawMapElement(change, controller);
-                    }).catch((err) => {
-                        console.warn('Skipping change due to enhance failure:', err.message);
+                    }
+                    // Trigger prefetch for next batch
+                    prefetchUpcoming();
+                });
+            } else {
+                // No prefetch available, do it synchronously
+                const change = new Change(context, item);
+
+                change.isRelevant().then((isRelevant) => {
+                    if (isRelevant) {
+                        change.enhance().then(() => {
+                            ui.update(change);
+                            maps.drawMapElement(change, controller);
+                            // Trigger prefetch for next batch
+                            prefetchUpcoming();
+                        }).catch((err) => {
+                            console.warn('Skipping change due to enhance failure:', err.message);
+                            controller();
+                        });
+                    } else {
                         controller();
-                    });
-                } else {
-                    controller();
-                }
-            });
+                    }
+                });
+            }
         } else {
             setTimeout(controller, context.runTime);
         }
     }
 
-    // start the loop
+    // Start initial prefetch and controller
+    prefetchUpcoming();
     controller();
 }
 
@@ -151,12 +185,12 @@ function setContext(obj) {
     context.runTime = 1000 * context.runTime;
     context.debug = context.debug === 'true' || context.debug === true;
 
-    // Load caches from localStorage if available, with expanded capacity
-    context.changesetCache = loadCacheFromStorage(STORAGE_KEYS.changesets, CACHE_SIZES.changesets);
-    context.geocodeCache = loadCacheFromStorage(STORAGE_KEYS.geocodes, CACHE_SIZES.geocodes);
+    // Initialize services (they handle their own caching and persistence)
+    context.changesetService = new ChangesetService();
+    context.changesetService.startPersisting();
 
-    // Set up periodic persistence
-    setupCachePersistence(context);
+    context.geocodeService = new GeocodeService();
+    context.geocodeService.startPersisting();
 
     return context;
 }
