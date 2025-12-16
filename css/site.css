@@ -161,6 +161,12 @@ h1 {
     z-index: 999;
 }
 
+.loading-dots {
+    display: inline-block;
+    width: 1em;
+    text-align: left;
+}
+
 .loading-dots::after {
     content: "";
     animation: loading-dots 2.5s steps(1) infinite;
