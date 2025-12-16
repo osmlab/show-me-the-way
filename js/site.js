@@ -97,6 +97,7 @@ function setContext(obj) {
     const context = Object.assign({}, config, obj);
     context.bounds = context.bounds.split(',');
     context.runTime = 1000 * context.runTime;
+    context.debug = context.debug === 'true' || context.debug === true;
 
     context.changesetCache = LRU(50);
     context.geocodeCache = LRU(200);
