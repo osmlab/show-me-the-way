@@ -3693,6 +3693,33 @@
     const height = Math.abs(bbox.getWest() - bbox.getEast());
     return width * height < 2;
   }
+  function distanceBetween(lat1, lon1, lat2, lon2) {
+    const R = 6371e3;
+    const lat1Rad = lat1 * Math.PI / 180;
+    const lat2Rad = lat2 * Math.PI / 180;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1Rad) * Math.cos(lat2Rad) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  }
+  async function fetchWithRetry(url, options = {}, config2 = {}) {
+    const { timeout = 5e3, retries = 2, backoff = 1e3 } = config2;
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeout);
+      try {
+        const response = await fetch(url, { ...options, signal: controller.signal });
+        clearTimeout(timeoutId);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return response;
+      } catch (err) {
+        clearTimeout(timeoutId);
+        if (attempt === retries) throw err;
+        await new Promise((r2) => setTimeout(r2, backoff * (attempt + 1)));
+      }
+    }
+  }
 
   // node_modules/date-fns/esm/index.js
   init_define_process_env();
@@ -4364,95 +4391,25 @@
   }
 
   // js/change.js
-  function distanceBetween(lat1, lon1, lat2, lon2) {
-    const R = 6371e3;
-    const lat1Rad = lat1 * Math.PI / 180;
-    const lat2Rad = lat2 * Math.PI / 180;
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1Rad) * Math.cos(lat2Rad) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
-  }
   var Change = class {
     constructor(context, changeObj) {
       this.context = context;
       Object.assign(this, changeObj);
     }
-    fetchChangesetData(id) {
-      return new Promise((resolve, reject) => {
-        const cachedData = this.context.changesetCache.get(id);
-        if (cachedData) {
-          return resolve(cachedData);
-        }
-        fetch(`//www.openstreetmap.org/api/0.6/changeset/${id}`, {
-          mode: "cors"
-        }).then((response) => response.text()).then((responseString) => {
-          return new window.DOMParser().parseFromString(responseString, "text/xml");
-        }).then((data) => {
-          const changesetData = {};
-          const tags = data.getElementsByTagName("tag");
-          for (let i = 0; i < tags.length; i++) {
-            const key = tags[i].getAttribute("k");
-            const value = tags[i].getAttribute("v");
-            changesetData[key] = value;
-          }
-          this.context.changesetCache.set(id, changesetData);
-          resolve(changesetData);
-        }).catch((err) => {
-          console.log("Error fetching changeset data", err);
-          reject(err);
-        });
-      });
-    }
-    fetchDisplayName(boundsCenter) {
-      return new Promise((resolve, reject) => {
-        const CLOSE_THRESHOLD_METERS = 1e4;
-        const closeByKey = this.context.geocodeCache.keys().find((key) => {
-          const [lat2, lon2] = key.split(",").map(parseFloat);
-          return distanceBetween(boundsCenter.lat, boundsCenter.lng, lat2, lon2) < CLOSE_THRESHOLD_METERS;
-        });
-        if (closeByKey) {
-          const cachedGeocode = this.context.geocodeCache.get(closeByKey);
-          if (cachedGeocode) {
-            return resolve(cachedGeocode);
-          }
-        }
-        const lat = boundsCenter.lat;
-        const lon = boundsCenter.lng;
-        const nominatimUrl = `//nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=5`;
-        fetch(nominatimUrl, {
-          mode: "cors"
-        }).then((response) => response.json()).then((data) => {
-          const id = `${lat},${lon}`;
-          const displayName = data.display_name;
-          this.context.geocodeCache.set(id, displayName);
-          resolve(displayName);
-        }).catch((err) => {
-          console.error("Error fetching location", err);
-          reject(err);
-        });
-      });
-    }
-    isRelevant() {
-      return new Promise((resolve) => {
-        let commentRelevance = false;
-        let keyRelevance = false;
-        const mapElement = this.neu || this.old;
-        if (this.context.comment === "" && !this.context.key) {
-          return resolve(true);
-        }
-        this.fetchChangesetData(mapElement.changeset).then((changesetData) => {
-          commentRelevance = this.context.comment !== "" && changesetData.comment?.toLowerCase().includes(this.context.comment.toLowerCase()) || false;
-          keyRelevance = Object.keys(mapElement.tags).includes(this.context.key);
-          if (!(commentRelevance || keyRelevance)) {
-            console.log(
-              "Skipping map element " + mapElement.id + " because it didn't match filters."
-            );
-          }
-          return resolve(commentRelevance | keyRelevance);
-        });
-      });
+    async isRelevant() {
+      const mapElement = this.neu || this.old;
+      if (this.context.comment === "" && !this.context.key) {
+        return true;
+      }
+      const changesetData = await this.context.changesetService.get(mapElement.changeset);
+      const commentRelevance = this.context.comment !== "" && changesetData.comment?.toLowerCase().includes(this.context.comment.toLowerCase()) || false;
+      const keyRelevance = Object.keys(mapElement.tags).includes(this.context.key);
+      if (!(commentRelevance || keyRelevance)) {
+        console.log(
+          "Skipping map element " + mapElement.id + " because it didn't match filters."
+        );
+      }
+      return commentRelevance || keyRelevance;
     }
     createTagText() {
       const showTags = [
@@ -4482,7 +4439,7 @@
       }
       return "a " + mapElement.type;
     }
-    enhance() {
+    async enhance() {
       console.log("Enhancing change, fetching changeset + geocode...");
       const startTime = Date.now();
       const mapElement = this.type === "delete" ? this.old : this.neu;
@@ -4512,19 +4469,15 @@
         { addSuffix: true }
       );
       this.tagText = this.createTagText();
-      return Promise.all([
-        this.fetchChangesetData(this.meta.changeset),
-        this.fetchDisplayName(bounds.getCenter())
-      ]).then(([changesetData, displayName]) => {
-        console.log(`Enhance complete in ${Date.now() - startTime}ms`);
-        this.meta.comment = changesetData.comment;
-        this.meta.createdBy = changesetData.created_by;
-        this.meta.displayName = displayName;
-        return this;
-      }).catch((err) => {
-        console.error(`Enhance failed after ${Date.now() - startTime}ms:`, err);
-        throw err;
-      });
+      const [changesetData, displayName] = await Promise.all([
+        this.context.changesetService.get(this.meta.changeset),
+        this.context.geocodeService.get(bounds.getCenter())
+      ]);
+      console.log(`Enhance complete in ${Date.now() - startTime}ms`);
+      this.meta.comment = changesetData.comment || "";
+      this.meta.createdBy = changesetData.created_by || "";
+      this.meta.displayName = displayName || "";
+      return this;
     }
   };
 
@@ -5442,7 +5395,13 @@
       document.getElementById("queuesize").textContent = numChanges;
     }
     _updateLocation(change) {
-      document.getElementById("reverse-location").textContent = change.meta.displayName;
+      const locationEl = document.getElementById("reverse-location");
+      if (change.meta.displayName) {
+        locationEl.textContent = change.meta.displayName;
+        locationEl.style.display = "";
+      } else {
+        locationEl.style.display = "none";
+      }
     }
   };
 
@@ -5545,9 +5504,402 @@
     return change.neu && Object.keys(change.neu.tags || {}).length > 0 || change.old && Object.keys(change.old.tags || {}).length > 0;
   }
 
-  // js/site.js
+  // js/diff-service.js
+  init_define_process_env();
+  init_buffer_global();
   var import_osm_stream = __toESM(require_osm_stream(), 1);
+  var DB_NAME = "smtw-diffs";
+  var STORE_NAME = "diffs";
+  var MAX_STORED_ENTRIES = 10;
+  var TTL_MS = 10 * 60 * 1e3;
+  var CULL_INTERVAL_MS = 60 * 1e3;
+  var MAX_RETRIES = 2;
+  var DiffService = class {
+    constructor() {
+      this.cullIntervalId = null;
+      this.streamHandle = null;
+      this.db = null;
+      this.memoryCache = [];
+    }
+    async init() {
+      await this.openDatabase();
+      await this.loadFromDB();
+    }
+    openDatabase() {
+      return new Promise((resolve, reject) => {
+        const request = indexedDB.open(DB_NAME, 1);
+        request.onerror = () => {
+          console.warn("[DiffService] Failed to open IndexedDB:", request.error);
+          reject(request.error);
+        };
+        request.onsuccess = () => {
+          this.db = request.result;
+          console.log("[DiffService] IndexedDB opened");
+          resolve();
+        };
+        request.onupgradeneeded = (event) => {
+          const db = event.target.result;
+          if (!db.objectStoreNames.contains(STORE_NAME)) {
+            db.createObjectStore(STORE_NAME, { keyPath: "key" });
+            console.log("[DiffService] Created IndexedDB store");
+          }
+        };
+      });
+    }
+    async loadFromDB() {
+      if (!this.db) return;
+      return new Promise((resolve) => {
+        const transaction = this.db.transaction([STORE_NAME], "readonly");
+        const store = transaction.objectStore(STORE_NAME);
+        const request = store.getAll();
+        request.onsuccess = () => {
+          this.memoryCache = request.result || [];
+          if (this.memoryCache.length) {
+            console.log(`[DiffService] Loaded ${this.memoryCache.length} entries from IndexedDB`);
+          }
+          resolve();
+        };
+        request.onerror = () => {
+          console.warn("[DiffService] Failed to load from IndexedDB:", request.error);
+          resolve();
+        };
+      });
+    }
+    async saveToDB(entries) {
+      if (!this.db) return;
+      return new Promise((resolve) => {
+        const transaction = this.db.transaction([STORE_NAME], "readwrite");
+        const store = transaction.objectStore(STORE_NAME);
+        store.clear();
+        for (const entry of entries) {
+          store.put(entry);
+        }
+        transaction.oncomplete = () => {
+          console.log(`[DiffService] Saved ${entries.length} entries to IndexedDB`);
+          resolve();
+        };
+        transaction.onerror = () => {
+          console.warn("[DiffService] Failed to save to IndexedDB:", transaction.error);
+          resolve();
+        };
+      });
+    }
+    start(onData, bbox = null) {
+      if (!this.cullIntervalId) {
+        this.cullIntervalId = setInterval(() => this.cull(), CULL_INTERVAL_MS);
+      }
+      this.streamHandle = import_osm_stream.default.runFn((err, data) => {
+        this.add(data);
+        onData(data);
+      }, null, null, bbox, MAX_RETRIES);
+    }
+    stop() {
+      if (this.cullIntervalId) {
+        clearInterval(this.cullIntervalId);
+        this.cullIntervalId = null;
+      }
+      if (this.streamHandle) {
+        this.streamHandle.cancel();
+        this.streamHandle = null;
+      }
+    }
+    /**
+     * Get all valid (non-expired) cached diff data (sync, from memory)
+     */
+    getCached() {
+      const now = Date.now();
+      const validEntries = this.memoryCache.filter((entry) => {
+        const entryTime = new Date(entry.key).getTime();
+        return now - entryTime < TTL_MS;
+      });
+      if (validEntries.length) {
+        console.log(`[DiffService] Found ${validEntries.length} valid cached diffs`);
+      }
+      return validEntries.flatMap((entry) => entry.data);
+    }
+    /**
+     * Cache a new diff
+     */
+    add(data) {
+      if (!data || !data.length) return;
+      const key = this.getTimestamp(data);
+      if (!key) return;
+      if (this.memoryCache.some((e) => e.key === key)) return;
+      this.memoryCache.push({ key, data });
+      if (this.memoryCache.length > MAX_STORED_ENTRIES) {
+        this.memoryCache = this.memoryCache.slice(-MAX_STORED_ENTRIES);
+      }
+      console.log(`[DiffService] Cached diff with key ${key}, total entries: ${this.memoryCache.length}`);
+      this.saveToDB(this.memoryCache);
+    }
+    /**
+     * Remove expired entries (older than TTL)
+     */
+    cull() {
+      const now = Date.now();
+      const before = this.memoryCache.length;
+      this.memoryCache = this.memoryCache.filter((entry) => {
+        const entryTime = new Date(entry.key).getTime();
+        return now - entryTime < TTL_MS;
+      });
+      if (this.memoryCache.length !== before) {
+        console.log(`[DiffService] Culled ${before - this.memoryCache.length} expired diffs`);
+        this.saveToDB(this.memoryCache);
+      }
+    }
+    /**
+     * Get timestamp from first item in diff data
+     * Uses timestamp because osm-stream doesn't include the state file used
+     */
+    getTimestamp(data) {
+      const firstItem = data[0];
+      if (firstItem && firstItem.neu && firstItem.neu.timestamp) {
+        return firstItem.neu.timestamp;
+      }
+      return null;
+    }
+  };
+
+  // js/changeset-service.js
+  init_define_process_env();
+  init_buffer_global();
   var import_lru_cache = __toESM(require_lru_cache(), 1);
+  var STORAGE_KEY = "smtw-changesets";
+  var MAX_SIZE = 500;
+  var PERSIST_INTERVAL_MS = 3e4;
+  var ChangesetService = class {
+    constructor() {
+      this.cache = this.loadFromStorage();
+      this.inFlight = /* @__PURE__ */ new Map();
+      this.persistIntervalId = null;
+    }
+    loadFromStorage() {
+      try {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored) {
+          const cache = (0, import_lru_cache.default)(MAX_SIZE);
+          cache.load(JSON.parse(stored));
+          console.log(`[ChangesetService] Loaded ${cache.length} entries from cache`);
+          return cache;
+        }
+      } catch (err) {
+        console.warn("[ChangesetService] Failed to load cache:", err.message);
+      }
+      return (0, import_lru_cache.default)(MAX_SIZE);
+    }
+    saveToStorage() {
+      const doSave = () => {
+        try {
+          const data = JSON.stringify(this.cache.dump());
+          localStorage.setItem(STORAGE_KEY, data);
+          console.log(`[ChangesetService] Saved ${this.cache.length} entries to cache`);
+        } catch (err) {
+          console.warn("[ChangesetService] Failed to save cache:", err.message);
+        }
+      };
+      if (typeof requestIdleCallback !== "undefined") {
+        requestIdleCallback(doSave, { timeout: 1e4 });
+      } else {
+        setTimeout(doSave, 0);
+      }
+    }
+    saveToStorageSync() {
+      try {
+        const data = JSON.stringify(this.cache.dump());
+        localStorage.setItem(STORAGE_KEY, data);
+      } catch (err) {
+      }
+    }
+    startPersisting() {
+      if (this.persistIntervalId) return;
+      this.persistIntervalId = setInterval(() => this.saveToStorage(), PERSIST_INTERVAL_MS);
+      window.addEventListener("beforeunload", () => this.saveToStorageSync());
+    }
+    stopPersisting() {
+      if (this.persistIntervalId) {
+        clearInterval(this.persistIntervalId);
+        this.persistIntervalId = null;
+      }
+    }
+    /**
+     * Get changeset data by ID
+     * @param {number} id - Changeset ID
+     * @returns {Promise<Object>} Changeset tags/metadata
+     */
+    async get(id) {
+      const cached = this.cache.get(id);
+      if (cached) {
+        console.log(`[ChangesetService] Cache hit for changeset ${id}`);
+        return cached;
+      }
+      if (this.inFlight.has(id)) {
+        console.log(`[ChangesetService] Waiting for in-flight request for changeset ${id}`);
+        return this.inFlight.get(id);
+      }
+      console.log(`[ChangesetService] Cache miss, fetching changeset ${id}`);
+      const fetchPromise = this.fetchChangeset(id);
+      this.inFlight.set(id, fetchPromise);
+      try {
+        const result = await fetchPromise;
+        return result;
+      } finally {
+        this.inFlight.delete(id);
+      }
+    }
+    async fetchChangeset(id) {
+      const response = await fetchWithRetry(
+        `//www.openstreetmap.org/api/0.6/changeset/${id}`,
+        { mode: "cors" },
+        { timeout: 5e3, retries: 2 }
+      );
+      const responseString = await response.text();
+      const data = new window.DOMParser().parseFromString(responseString, "text/xml");
+      const changesetData = {};
+      const tags = data.getElementsByTagName("tag");
+      for (let i = 0; i < tags.length; i++) {
+        const key = tags[i].getAttribute("k");
+        const value = tags[i].getAttribute("v");
+        changesetData[key] = value;
+      }
+      this.cache.set(id, changesetData);
+      return changesetData;
+    }
+  };
+
+  // js/geocode-service.js
+  init_define_process_env();
+  init_buffer_global();
+  var import_lru_cache2 = __toESM(require_lru_cache(), 1);
+  var STORAGE_KEY2 = "smtw-geocodes";
+  var MAX_SIZE2 = 2e3;
+  var PERSIST_INTERVAL_MS2 = 3e4;
+  var CLOSE_THRESHOLD_METERS = 1e4;
+  var GeocodeService = class {
+    constructor() {
+      this.cache = this.loadFromStorage();
+      this.inFlight = /* @__PURE__ */ new Map();
+      this.persistIntervalId = null;
+    }
+    loadFromStorage() {
+      try {
+        const stored = localStorage.getItem(STORAGE_KEY2);
+        if (stored) {
+          const cache = (0, import_lru_cache2.default)(MAX_SIZE2);
+          cache.load(JSON.parse(stored));
+          console.log(`[GeocodeService] Loaded ${cache.length} entries from cache`);
+          return cache;
+        }
+      } catch (err) {
+        console.warn("[GeocodeService] Failed to load cache:", err.message);
+      }
+      return (0, import_lru_cache2.default)(MAX_SIZE2);
+    }
+    saveToStorage() {
+      const doSave = () => {
+        try {
+          const data = JSON.stringify(this.cache.dump());
+          localStorage.setItem(STORAGE_KEY2, data);
+          console.log(`[GeocodeService] Saved ${this.cache.length} entries to cache`);
+        } catch (err) {
+          console.warn("[GeocodeService] Failed to save cache:", err.message);
+        }
+      };
+      if (typeof requestIdleCallback !== "undefined") {
+        requestIdleCallback(doSave, { timeout: 1e4 });
+      } else {
+        setTimeout(doSave, 0);
+      }
+    }
+    saveToStorageSync() {
+      try {
+        const data = JSON.stringify(this.cache.dump());
+        localStorage.setItem(STORAGE_KEY2, data);
+      } catch (err) {
+      }
+    }
+    startPersisting() {
+      if (this.persistIntervalId) return;
+      this.persistIntervalId = setInterval(() => this.saveToStorage(), PERSIST_INTERVAL_MS2);
+      window.addEventListener("beforeunload", () => this.saveToStorageSync());
+    }
+    stopPersisting() {
+      if (this.persistIntervalId) {
+        clearInterval(this.persistIntervalId);
+        this.persistIntervalId = null;
+      }
+    }
+    /**
+     * Find a cached geocode within threshold distance
+     */
+    findNearbyCache(lat, lon) {
+      const closeByKey = this.cache.keys().find((key) => {
+        const [cachedLat, cachedLon] = key.split(",").map(parseFloat);
+        return distanceBetween(lat, lon, cachedLat, cachedLon) < CLOSE_THRESHOLD_METERS;
+      });
+      if (closeByKey) {
+        return this.cache.get(closeByKey);
+      }
+      return null;
+    }
+    /**
+     * Get display name for a location
+     * @param {Object} boundsCenter - Object with lat and lng properties
+     * @returns {Promise<string|null>} Display name or null on failure
+     */
+    async get(boundsCenter) {
+      const lat = boundsCenter.lat;
+      const lon = boundsCenter.lng;
+      const key = `${lat.toFixed(2)},${lon.toFixed(2)}`;
+      if (this.cache.has(key)) {
+        const cached = this.cache.get(key);
+        console.log(`[GeocodeService] Cache hit for ${key}: ${cached ? "found" : "cached failure"}`);
+        return cached;
+      }
+      const nearbyCached = this.findNearbyCache(lat, lon);
+      if (nearbyCached) {
+        console.log(`[GeocodeService] Cache hit (nearby) for ${key}`);
+        return nearbyCached;
+      }
+      if (this.inFlight.has(key)) {
+        console.log(`[GeocodeService] Waiting for in-flight request for ${key}`);
+        return this.inFlight.get(key);
+      }
+      console.log(`[GeocodeService] Cache miss, fetching ${key}`);
+      const fetchPromise = this.fetchGeocode(lat, lon);
+      this.inFlight.set(key, fetchPromise);
+      try {
+        const result = await fetchPromise;
+        return result;
+      } finally {
+        this.inFlight.delete(key);
+      }
+    }
+    async fetchGeocode(lat, lon) {
+      const roundedLat = lat.toFixed(2);
+      const roundedLon = lon.toFixed(2);
+      const nominatimUrl = `//nominatim.openstreetmap.org/reverse?format=json&lat=${roundedLat}&lon=${roundedLon}&zoom=5`;
+      try {
+        const response = await fetchWithRetry(
+          nominatimUrl,
+          { mode: "cors" },
+          { timeout: 3e3, retries: 1 }
+          // 3s timeout, max 2 attempts total
+        );
+        const data = await response.json();
+        const id = `${roundedLat},${roundedLon}`;
+        const displayName = data.display_name;
+        this.cache.set(id, displayName);
+        return displayName;
+      } catch (err) {
+        console.warn("[GeocodeService] Failed to fetch location after retries:", err.message);
+        const id = `${roundedLat},${roundedLon}`;
+        this.cache.set(id, null);
+        return null;
+      }
+    }
+  };
+
+  // js/site.js
   function init2(windowLocationObj) {
     const ui = new Ui();
     const hashParams = new URLSearchParams(windowLocationObj.hash.replace("#", ""));
@@ -5555,34 +5907,119 @@
     const context = setContext(params);
     let queue = [];
     const bbox = makeBbox(context.bounds);
+    const filterAndGroup = (data) => {
+      const filtered = data.filter(happenedToday).filter(userNotIgnored).filter(acceptableType).filter(hasTags).filter(wayLongEnough).filter((change) => withinBbox(change, bbox));
+      const byChangeset = /* @__PURE__ */ new Map();
+      for (const change of filtered) {
+        const changesetId = (change.neu || change.old).changeset;
+        if (!byChangeset.has(changesetId)) {
+          byChangeset.set(changesetId, []);
+        }
+        byChangeset.get(changesetId).push(change);
+      }
+      const sortedGroups = Array.from(byChangeset.values()).sort((a, b) => a.length - b.length);
+      const result = sortedGroups.flat();
+      console.log(`[Queue] Grouped ${filtered.length} changes into ${byChangeset.size} changesets (largest: ${sortedGroups[sortedGroups.length - 1]?.length || 0} items)`);
+      return result;
+    };
+    const diffService = new DiffService();
     const requestingBbox = context.bounds != config.bounds && isBboxSizeAcceptable(bbox) ? makeBboxString(makeBbox(context.bounds)) : null;
-    const maxDiffRetries = 2;
-    import_osm_stream.default.runFn((err, data) => {
-      queue = data.filter(happenedToday).filter(userNotIgnored).filter(acceptableType).filter(hasTags).filter(wayLongEnough).filter((change) => withinBbox(change, bbox)).sort((a, b) => {
-        return +new Date(a.neu && a.neu.timestamp) - +new Date(b.neu && b.neu.timestamp);
-      });
-    }, null, null, requestingBbox, maxDiffRetries);
+    diffService.init().then(() => {
+      const cachedDiffs = diffService.getCached();
+      if (cachedDiffs.length) {
+        queue = filterAndGroup(cachedDiffs);
+        console.log(`Loaded ${queue.length} changes from cached diffs`);
+      }
+      diffService.start((data) => {
+        queue = filterAndGroup(data);
+      }, requestingBbox);
+    }).catch((err) => {
+      console.warn("[DiffService] Init failed, starting without cache:", err);
+      diffService.start((data) => {
+        queue = filterAndGroup(data);
+      }, requestingBbox);
+    });
     const maps = new Maps(context, bbox);
     const sidebar = new Sidebar(hashParams, windowLocationObj, context);
     sidebar.initializeEventListeners();
+    const PREFETCH_COUNT = 3;
+    const PREFETCH_DELAY_MS = 1e3;
+    const prefetchMap = /* @__PURE__ */ new Map();
+    function getChangesetId(item) {
+      return (item.neu || item.old).changeset;
+    }
+    function prefetchUpcoming() {
+      const toPrefetch = [];
+      const seenChangesets = /* @__PURE__ */ new Set();
+      for (let i = queue.length - 1; i >= 0 && toPrefetch.length < PREFETCH_COUNT; i--) {
+        const item = queue[i];
+        const changesetId = getChangesetId(item);
+        if (!seenChangesets.has(changesetId)) {
+          seenChangesets.add(changesetId);
+          toPrefetch.push(item);
+        }
+      }
+      toPrefetch.forEach((item, index) => {
+        const changesetId = getChangesetId(item);
+        if (prefetchMap.has(changesetId)) return;
+        if (context.changesetService.cache.has(changesetId)) return;
+        const delay = index * PREFETCH_DELAY_MS;
+        const prefetchPromise = new Promise((resolve) => {
+          setTimeout(() => {
+            const change = new Change(context, item);
+            change.isRelevant().then((isRelevant) => {
+              if (!isRelevant) {
+                resolve({ change, skip: true });
+                return;
+              }
+              change.enhance().then(() => resolve({ change, skip: false })).catch(() => resolve({ change, skip: true }));
+            });
+          }, delay);
+        });
+        prefetchMap.set(changesetId, prefetchPromise);
+        console.log(`[Prefetch] Started prefetch for changeset ${changesetId}`);
+      });
+    }
     function controller() {
       if (queue.length) {
-        const change = new Change(context, queue.pop());
+        const item = queue.pop();
+        const changesetId = getChangesetId(item);
         ui.updateQueueSize(queue.length);
-        change.isRelevant().then((isRelevant) => {
-          if (isRelevant) {
-            change.enhance().then(() => {
+        const prefetched = prefetchMap.get(changesetId);
+        if (prefetched) {
+          prefetchMap.delete(changesetId);
+          console.log(`[Prefetch] Using prefetched result for changeset ${changesetId}`);
+          prefetched.then(({ change, skip }) => {
+            if (skip) {
+              controller();
+            } else {
               ui.update(change);
               maps.drawMapElement(change, controller);
-            });
-          } else {
-            controller();
-          }
-        });
+            }
+            prefetchUpcoming();
+          });
+        } else {
+          const change = new Change(context, item);
+          change.isRelevant().then((isRelevant) => {
+            if (isRelevant) {
+              change.enhance().then(() => {
+                ui.update(change);
+                maps.drawMapElement(change, controller);
+                prefetchUpcoming();
+              }).catch((err) => {
+                console.warn("Skipping change due to enhance failure:", err.message);
+                controller();
+              });
+            } else {
+              controller();
+            }
+          });
+        }
       } else {
         setTimeout(controller, context.runTime);
       }
     }
+    prefetchUpcoming();
     controller();
   }
   function setContext(obj) {
@@ -5592,8 +6029,10 @@
     context.bounds = context.bounds.split(",");
     context.runTime = 1e3 * context.runTime;
     context.debug = context.debug === "true" || context.debug === true;
-    context.changesetCache = (0, import_lru_cache.default)(50);
-    context.geocodeCache = (0, import_lru_cache.default)(200);
+    context.changesetService = new ChangesetService();
+    context.changesetService.startPersisting();
+    context.geocodeService = new GeocodeService();
+    context.geocodeService.startPersisting();
     return context;
   }
   init2(window.location);
