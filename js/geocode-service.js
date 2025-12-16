@@ -77,7 +77,7 @@ class GeocodeService {
     async get(boundsCenter) {
         const lat = boundsCenter.lat;
         const lon = boundsCenter.lng;
-        const key = `${lat.toFixed(4)},${lon.toFixed(4)}`; // Round for dedup key
+        const key = `${lat.toFixed(2)},${lon.toFixed(2)}`; // Round to ~1.1km resolution
 
         // Check for nearby cached result
         const nearbyCached = this.findNearbyCache(lat, lon);
@@ -107,8 +107,11 @@ class GeocodeService {
     }
 
     async fetchGeocode(lat, lon) {
+        // Use reduced precision for the request (matches cache key)
+        const roundedLat = lat.toFixed(2);
+        const roundedLon = lon.toFixed(2);
         const nominatimUrl = `//nominatim.openstreetmap.org/reverse`
-            + `?format=json&lat=${lat}&lon=${lon}&zoom=5`;
+            + `?format=json&lat=${roundedLat}&lon=${roundedLon}&zoom=5`;
 
         try {
             const response = await fetchWithRetry(
@@ -117,7 +120,7 @@ class GeocodeService {
                 { timeout: 3000, retries: 1 } // 3s timeout, max 2 attempts total
             );
             const data = await response.json();
-            const id = `${lat},${lon}`;
+            const id = `${roundedLat},${roundedLon}`;
             const displayName = data.display_name;
             this.cache.set(id, displayName);
             return displayName;
