@@ -28,7 +28,13 @@ class Ui {
     }
 
     _updateLocation(change) {
-        document.getElementById('reverse-location').textContent = change.meta.displayName;
+        const locationEl = document.getElementById('reverse-location');
+        if (change.meta.displayName) {
+            locationEl.textContent = change.meta.displayName;
+            locationEl.style.display = '';
+        } else {
+            locationEl.style.display = 'none';
+        }
     }
 }
 

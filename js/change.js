@@ -2,132 +2,36 @@ import { makeBbox } from './utils';
 
 import { formatDistanceStrict } from 'date-fns';
 
-// Helper function to calculate distance between two points in meters (Haversine formula)
-function distanceBetween(lat1, lon1, lat2, lon2) {
-    const R = 6371000; // Earth's radius in meters
-    const lat1Rad = lat1 * Math.PI / 180;
-    const lat2Rad = lat2 * Math.PI / 180;
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-
-    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-              Math.cos(lat1Rad) * Math.cos(lat2Rad) *
-              Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-    return R * c;
-}
-
 class Change {
     constructor(context, changeObj) {
         this.context = context;
         Object.assign(this, changeObj);
     }
 
-    fetchChangesetData(id) {
-        return new Promise((resolve, reject) => {
-            const cachedData = this.context.changesetCache.get(id);
-            if (cachedData) {
-                return resolve(cachedData);
-            }
+    async isRelevant() {
+        const mapElement = this.neu || this.old;
 
-            fetch(`//www.openstreetmap.org/api/0.6/changeset/${id}`, {
-                mode: 'cors'
-            })
-            .then((response) => response.text())
-            .then((responseString) => {
-                return new window.DOMParser()
-                    .parseFromString(responseString, 'text/xml');
-            })
-            .then((data) => {
-                const changesetData = {};
-                const tags = data.getElementsByTagName('tag');
+        if (this.context.comment === "" && !this.context.key) {
+            return true;
+        }
 
-                for (let i = 0; i < tags.length; i++) {
-                    const key = tags[i].getAttribute('k');
-                    const value = tags[i].getAttribute('v');
-                    changesetData[key] = value;
-                }
+        const changesetData = await this.context.changesetService.get(mapElement.changeset);
 
-                this.context.changesetCache.set(id, changesetData);
+        const commentRelevance =
+            this.context.comment !== "" &&
+            changesetData.comment?.toLowerCase()
+                .includes(this.context.comment.toLowerCase()) || false;
 
-                resolve(changesetData);
-            })
-            .catch((err) => {
-                console.log('Error fetching changeset data', err);
-                reject(err);
-            });
-        });
-    }
+        const keyRelevance = Object.keys(mapElement.tags).includes(this.context.key);
 
-    fetchDisplayName(boundsCenter) {
-        return new Promise((resolve, reject) => {
-            const CLOSE_THRESHOLD_METERS = 10000;
-            const closeByKey = this.context.geocodeCache.keys().find((key) => {
-                const [ lat, lon ] = key.split(',').map(parseFloat);
-                return distanceBetween(boundsCenter.lat, boundsCenter.lng, lat, lon) < CLOSE_THRESHOLD_METERS;
-            });
+        if (!(commentRelevance || keyRelevance)) {
+            console.log(
+                "Skipping map element " + mapElement.id
+                + " because it didn't match filters."
+            );
+        }
 
-            if (closeByKey) {
-                const cachedGeocode = this.context.geocodeCache.get(closeByKey);
-                if (cachedGeocode) {
-                    return resolve(cachedGeocode);
-                }
-            }
-
-            const lat = boundsCenter.lat;
-            const lon = boundsCenter.lng;
-
-            const nominatimUrl = `//nominatim.openstreetmap.org/reverse`
-                + `?format=json&lat=${lat}&lon=${lon}&zoom=5`;
-
-            fetch(nominatimUrl, {
-                mode: 'cors'
-            })
-                .then((response) => response.json())
-                .then((data) => {
-                    const id = `${lat},${lon}`;
-                    const displayName = data.display_name;
-                    this.context.geocodeCache.set(id, displayName);
-                    resolve(displayName);
-                })
-                .catch((err) => {
-                    console.error('Error fetching location', err);
-                    reject(err);
-                });
-        });
-    }
-
-    isRelevant() {
-        return new Promise((resolve) => {
-            let commentRelevance = false;
-            let keyRelevance = false;
-            const mapElement = this.neu || this.old;
-
-            if (this.context.comment === "" && !this.context.key) {
-                return resolve(true);
-            }
-
-            this.fetchChangesetData(mapElement.changeset)
-                .then((changesetData) => {
-
-                    commentRelevance = 
-                        this.context.comment !== "" && 
-                        changesetData.comment?.toLowerCase()
-                            .includes(this.context.comment.toLowerCase()) || false;
-
-                    keyRelevance = Object.keys(mapElement.tags).includes(this.context.key);
-
-                    if (!(commentRelevance || keyRelevance)) {
-                        console.log(
-                            "Skipping map element " + mapElement.id
-                            + " because it didn't match filters."
-                        );
-                    }
-
-                    return resolve(commentRelevance | keyRelevance);
-                });
-        });
+        return commentRelevance || keyRelevance;
     }
 
     createTagText() {
@@ -145,7 +49,7 @@ class Change {
         return 'a ' + mapElement.type;
     }
 
-    enhance() {
+    async enhance() {
         console.log('Enhancing change, fetching changeset + geocode...');
         const startTime = Date.now();
         const mapElement = this.type === 'delete' ? this.old : this.neu;
@@ -180,19 +84,16 @@ class Change {
 
         this.tagText = this.createTagText();
 
-        return Promise.all([
-            this.fetchChangesetData(this.meta.changeset),
-            this.fetchDisplayName(bounds.getCenter()),
-        ]).then(([changesetData, displayName]) => {
-            console.log(`Enhance complete in ${Date.now() - startTime}ms`);
-            this.meta.comment = changesetData.comment;
-            this.meta.createdBy = changesetData.created_by;
-            this.meta.displayName = displayName;
-            return this;
-        }).catch((err) => {
-            console.error(`Enhance failed after ${Date.now() - startTime}ms:`, err);
-            throw err;
-        });
+        const [changesetData, displayName] = await Promise.all([
+            this.context.changesetService.get(this.meta.changeset),
+            this.context.geocodeService.get(bounds.getCenter()),
+        ]);
+
+        console.log(`Enhance complete in ${Date.now() - startTime}ms`);
+        this.meta.comment = changesetData.comment || '';
+        this.meta.createdBy = changesetData.created_by || '';
+        this.meta.displayName = displayName || '';
+        return this;
     }
 }
 
