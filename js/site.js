@@ -23,6 +23,55 @@ import {
 import osmStream from 'osm-stream';
 import LRU from 'lru-cache';
 
+const STORAGE_KEYS = {
+    changesets: 'smtw-changesets',
+    geocodes: 'smtw-geocodes'
+};
+
+const CACHE_SIZES = {
+    changesets: 500,
+    geocodes: 2000
+};
+
+const PERSIST_INTERVAL_MS = 30000;
+
+function loadCacheFromStorage(key, maxSize) {
+    try {
+        const stored = localStorage.getItem(key);
+        if (stored) {
+            const cache = LRU(maxSize);
+            cache.load(JSON.parse(stored));
+            console.log(`Loaded ${cache.length} entries from ${key}`);
+            return cache;
+        }
+    } catch (err) {
+        console.warn(`Failed to load cache from ${key}:`, err.message);
+    }
+    return LRU(maxSize);
+}
+
+function saveCacheToStorage(cache, key) {
+    try {
+        const data = JSON.stringify(cache.dump());
+        localStorage.setItem(key, data);
+    } catch (err) {
+        console.warn(`Failed to save cache to ${key}:`, err.message);
+    }
+}
+
+function setupCachePersistence(context) {
+    const persistCaches = () => {
+        saveCacheToStorage(context.changesetCache, STORAGE_KEYS.changesets);
+        saveCacheToStorage(context.geocodeCache, STORAGE_KEYS.geocodes);
+    };
+
+    // Persist every 30 seconds
+    setInterval(persistCaches, PERSIST_INTERVAL_MS);
+
+    // Persist on page unload
+    window.addEventListener('beforeunload', persistCaches);
+}
+
 function init(windowLocationObj) {
     const ui = new Ui();
 
@@ -102,8 +151,12 @@ function setContext(obj) {
     context.runTime = 1000 * context.runTime;
     context.debug = context.debug === 'true' || context.debug === true;
 
-    context.changesetCache = LRU(50);
-    context.geocodeCache = LRU(200);
+    // Load caches from localStorage if available, with expanded capacity
+    context.changesetCache = loadCacheFromStorage(STORAGE_KEYS.changesets, CACHE_SIZES.changesets);
+    context.geocodeCache = loadCacheFromStorage(STORAGE_KEYS.geocodes, CACHE_SIZES.geocodes);
+
+    // Set up periodic persistence
+    setupCachePersistence(context);
 
     return context;
 }
