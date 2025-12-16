@@ -1,4 +1,4 @@
-import { render } from 'mustache';
+import Mustache from 'mustache';
 
 class Ui {
     constructor() {
@@ -14,7 +14,7 @@ class Ui {
 
         this._updateComment(change);
         this._updateLocation(change);
-        this.changesetInfo.innerHTML = render(this.changesetTemplate, change);
+        this.changesetInfo.innerHTML = Mustache.render(this.changesetTemplate, change);
     }
 
     _updateComment(change) {
