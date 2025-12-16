@@ -7,21 +7,21 @@
   "scripts": {
     "lint": "eslint js/*.js",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "browserify js/site.js -p esmify > js/bundle.js"
+    "build": "esbuild js/site.js --bundle --outfile=js/bundle.js --format=iife --target=es2020 --alias:util=./js/shims/util.js --alias:stream=./js/shims/stream.js --define:process.env={} --inject:./js/shims/buffer-global.js"
   },
   "repository": "",
   "author": "",
   "license": "BSD",
   "dependencies": {
+    "buffer": "^6.0.3",
     "date-fns": "^2.28.0",
     "lru-cache": "^4.0.2",
     "mustache": "^4.2.0",
     "osm-stream": "github:osmlab/osm-stream#v0.0.15"
   },
   "devDependencies": {
-    "browserify": "^17.0.0",
-    "eslint": "^8.18.0",
-    "esmify": "^2.1.1"
+    "esbuild": "^0.24.0",
+    "eslint": "^8.18.0"
   },
   "eslintConfig": {
     "extends": "eslint:recommended",
