@@ -32,18 +32,28 @@ export function withinBbox(change, bbox) {
     let within = false;
 
     if (type == 'way') {
-        const bboxIntersectsOld = (c.old && c.old.bounds && bbox.intersects(makeBbox(c.old.bounds)));
-        const bboxIntersectsNew = (c.neu && c.neu.bounds && bbox.intersects(makeBbox(c.neu.bounds)));
+        const bboxIntersectsOld = (c.old && c.old.bounds && bboxIntersects(bbox, makeBbox(c.old.bounds)));
+        const bboxIntersectsNew = (c.neu && c.neu.bounds && bboxIntersects(bbox, makeBbox(c.neu.bounds)));
         within = (bboxIntersectsOld || bboxIntersectsNew);
     } else if (type == 'node') {
-        const bboxContainsOld = (c.old && c.old.lat && c.old.lon && bbox.contains(new L.LatLng(c.old.lat, c.old.lon)));
-        const bboxContainsNew = (c.neu && c.neu.lat && c.neu.lon && bbox.contains(new L.LatLng(c.neu.lat, c.neu.lon)));
+        const bboxContainsOld = (c.old && c.old.lat && c.old.lon && bbox.contains([c.old.lon, c.old.lat]));
+        const bboxContainsNew = (c.neu && c.neu.lat && c.neu.lon && bbox.contains([c.neu.lon, c.neu.lat]));
         within = (bboxContainsOld || bboxContainsNew);
     } else {
         console.error('no bbox check for this geometry type');
     }
 
     return within;
+}
+
+// Helper: check if two LngLatBounds intersect
+function bboxIntersects(bbox1, bbox2) {
+    return !(
+        bbox2.getWest() > bbox1.getEast() ||
+        bbox2.getEast() < bbox1.getWest() ||
+        bbox2.getSouth() > bbox1.getNorth() ||
+        bbox2.getNorth() < bbox1.getSouth()
+    );
 }
 
 export function hasTags(change) {
