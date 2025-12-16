@@ -3670,17 +3670,27 @@
   init_define_process_env();
   init_buffer_global();
   function makeBbox(boundsArray) {
-    return new L.LatLngBounds(
-      new L.LatLng(boundsArray[0], boundsArray[1]),
-      new L.LatLng(boundsArray[2], boundsArray[3])
+    const lat1 = Number(boundsArray[0]);
+    const lng1 = Number(boundsArray[1]);
+    const lat2 = Number(boundsArray[2]);
+    const lng2 = Number(boundsArray[3]);
+    const south = Math.min(lat1, lat2);
+    const north = Math.max(lat1, lat2);
+    const west = Math.min(lng1, lng2);
+    const east = Math.max(lng1, lng2);
+    return new maplibregl.LngLatBounds(
+      [west, south],
+      // sw
+      [east, north]
+      // ne
     );
   }
   function makeBboxString(bbox) {
-    return bbox.toBBoxString();
+    return `${bbox.getWest()},${bbox.getSouth()},${bbox.getEast()},${bbox.getNorth()}`;
   }
   function isBboxSizeAcceptable(bbox) {
-    const width = Math.abs(bbox.getSouthWest().lat - bbox.getNorthEast().lat);
-    const height = Math.abs(bbox.getSouthWest().lng - bbox.getNorthEast().lng);
+    const width = Math.abs(bbox.getSouth() - bbox.getNorth());
+    const height = Math.abs(bbox.getWest() - bbox.getEast());
     return width * height < 2;
   }
 
@@ -4354,6 +4364,16 @@
   }
 
   // js/change.js
+  function distanceBetween(lat1, lon1, lat2, lon2) {
+    const R = 6371e3;
+    const lat1Rad = lat1 * Math.PI / 180;
+    const lat2Rad = lat2 * Math.PI / 180;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1Rad) * Math.cos(lat2Rad) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  }
   var Change = class {
     constructor(context, changeObj) {
       this.context = context;
@@ -4390,7 +4410,7 @@
         const CLOSE_THRESHOLD_METERS = 1e4;
         const closeByKey = this.context.geocodeCache.keys().find((key) => {
           const [lat2, lon2] = key.split(",").map(parseFloat);
-          return boundsCenter.distanceTo(L.latLng(lat2, lon2)) < CLOSE_THRESHOLD_METERS;
+          return distanceBetween(boundsCenter.lat, boundsCenter.lng, lat2, lon2) < CLOSE_THRESHOLD_METERS;
         });
         if (closeByKey) {
           const cachedGeocode = this.context.geocodeCache.get(closeByKey);
@@ -4463,6 +4483,8 @@
       return "a " + mapElement.type;
     }
     enhance() {
+      console.log("Enhancing change, fetching changeset + geocode...");
+      const startTime = Date.now();
       const mapElement = this.type === "delete" ? this.old : this.neu;
       const bounds = mapElement.type === "way" ? makeBbox(mapElement.bounds) : makeBbox([
         mapElement.lat,
@@ -4494,10 +4516,14 @@
         this.fetchChangesetData(this.meta.changeset),
         this.fetchDisplayName(bounds.getCenter())
       ]).then(([changesetData, displayName]) => {
+        console.log(`Enhance complete in ${Date.now() - startTime}ms`);
         this.meta.comment = changesetData.comment;
         this.meta.createdBy = changesetData.created_by;
         this.meta.displayName = displayName;
         return this;
+      }).catch((err) => {
+        console.error(`Enhance failed after ${Date.now() - startTime}ms:`, err);
+        throw err;
       });
     }
   };
@@ -4521,198 +4547,416 @@
     constructor(context, bbox) {
       this.context = context;
       const filteredBbox = context.bounds != config.bounds;
-      const defaultCenter = "51.505,-0.09".split(",");
-      this.main = L.map("map", {
-        zoomControl: false,
-        dragging: false,
-        scrollWheelZoom: false,
-        doubleClickZoom: false,
-        boxZoom: false
-      });
-      if (filteredBbox) {
-        L.rectangle(bbox, {
-          color: "#ffffff",
-          weight: 5,
-          fill: false
-        }).addTo(this.main);
-        this.main.fitBounds(bbox);
-      } else {
-        this.main.setView(defaultCenter, 13);
-      }
-      this.overviewMap = L.map("overview_map", {
-        zoomControl: false,
-        dragging: false,
-        touchZoom: false,
-        scrollWheelZoom: false,
-        doubleClickZoom: false,
-        boxZoom: false,
-        minZoom: 4,
-        maxZoom: 8
-      });
-      if (filteredBbox) {
-        L.rectangle(bbox, {
-          color: "#ffffff",
-          weight: 1,
-          fill: false
-        }).addTo(this.overviewMap);
-        this.overviewMap.fitBounds(bbox);
-      } else {
-        this.overviewMap.setView(defaultCenter, 4);
-      }
+      const defaultCenter = [-0.09, 51.505];
       const isLocal = window.location.hostname === "localhost" || window.location.hostname.startsWith("192");
+      const overviewStyle = "https://demotiles.maplibre.org/style.json";
+      let mainStyle;
       if (isLocal) {
-        this.mainTileLayer = new L.TileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-          attribution: '&copy; <a href="https://openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-          crossOrigin: "anonymous"
-        }).addTo(this.main);
-        new L.TileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-          minZoom: 4,
-          maxZoom: 8,
-          attribution: '&copy; <a href="https://openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        }).addTo(this.overviewMap);
+        mainStyle = {
+          version: 8,
+          name: "Dark Basemap",
+          sources: {
+            "osm-tiles": {
+              type: "raster",
+              tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+              tileSize: 256,
+              attribution: "\xA9 OpenStreetMap contributors"
+            }
+          },
+          layers: [{
+            id: "osm-tiles",
+            type: "raster",
+            source: "osm-tiles",
+            paint: {
+              "raster-saturation": -1,
+              "raster-brightness-max": 0.5,
+              "raster-contrast": 0.1
+            }
+          }]
+        };
       } else {
         const mapboxKey = "pk.eyJ1Ijoib3BlbnN0cmVldG1hcHVzIiwiYSI6ImNqdTM1ZWxqeTBqa2MzeXBhODIxdnE2eG8ifQ.zyhAo181muDzPRdyYsqLGw";
-        this.mainTileLayer = new L.TileLayer(
-          "https://api.mapbox.com/styles/v1/openstreetmapus/{style_id}/tiles/256/{z}/{x}/{y}?access_token={key}",
-          {
-            style_id: "cju35gljt1bpm1fp2z93dlyca",
-            key: mapboxKey,
-            attribution: '<a href="https://mapbox.com/about/maps/">Terms &amp; Conditions</a>',
-            crossOrigin: "anonymous"
-          }
-        ).addTo(this.main);
-        new L.TileLayer(
-          "https://api.mapbox.com/styles/v1/openstreetmapus/{style_id}/tiles/256/{z}/{x}/{y}?access_token={key}",
-          {
-            minZoom: 4,
-            maxZoom: 8,
-            style_id: "cj8xtgojqhd3z2sorzpi01csj",
-            key: mapboxKey,
-            attribution: '<a href="https://mapbox.com/about/maps/">Terms &amp; Conditions</a>'
-          }
-        ).addTo(this.overviewMap);
+        mainStyle = {
+          version: 8,
+          name: "Mapbox Dark",
+          sources: {
+            "mapbox-tiles": {
+              type: "raster",
+              tiles: [`https://api.mapbox.com/styles/v1/openstreetmapus/cju35gljt1bpm1fp2z93dlyca/tiles/256/{z}/{x}/{y}?access_token=${mapboxKey}`],
+              tileSize: 256,
+              attribution: '<a href="https://mapbox.com/about/maps/">Terms & Conditions</a>'
+            }
+          },
+          layers: [{
+            id: "mapbox-tiles",
+            type: "raster",
+            source: "mapbox-tiles"
+          }]
+        };
       }
-      this.main.attributionControl.setPrefix("");
-      this.overviewMap.attributionControl.setPrefix(false);
-      this.featureGroup = L.featureGroup().addTo(this.main);
-      this.debugRect = null;
-      if (this.context.debug) {
-        this.main.on("moveend", () => this.updateDebugRect());
+      this.main = new maplibregl.Map({
+        container: "map",
+        style: mainStyle,
+        center: defaultCenter,
+        zoom: 13,
+        interactive: false,
+        attributionControl: false
+      });
+      this.main.addControl(new maplibregl.AttributionControl({ compact: true }));
+      this.main.on("style.load", () => {
+        this.main.setProjection({ type: "globe" });
+      });
+      this.overviewMap = new maplibregl.Map({
+        container: "overview_map",
+        style: overviewStyle,
+        center: defaultCenter,
+        zoom: 1,
+        minZoom: 0.5,
+        maxZoom: 2,
+        interactive: false,
+        attributionControl: false
+      });
+      this.overviewMap.on("style.load", () => {
+        this.overviewMap.setProjection({ type: "globe" });
+      });
+      this.overviewMarker = new maplibregl.Marker({ color: "#3887be" }).setLngLat([0, 0]).addTo(this.overviewMap);
+      this.overviewMarker.getElement().style.display = "none";
+      this.lastOverviewLocation = null;
+      if (filteredBbox) {
+        const bounds = [[bbox.getWest(), bbox.getSouth()], [bbox.getEast(), bbox.getNorth()]];
+        this.main.on("load", () => {
+          this.main.fitBounds(bounds, { padding: 50, duration: 0 });
+          this.addBboxRectangle(this.main, bbox, "main-bbox-rect", 5);
+        });
+        this.overviewMap.on("load", () => {
+          this.overviewMap.fitBounds(bounds, { padding: 20, duration: 0 });
+          this.addBboxRectangle(this.overviewMap, bbox, "overview-bbox-rect", 1);
+        });
       }
+      this.featureCounter = 0;
+      this.activeFeatures = [];
+      this.main.on("load", () => {
+        this.setupDrawingLayers();
+        if (this.context.debug) {
+          this.setupDebugLayer();
+        }
+      });
     }
-    // Calculate the no-pan zone bounds
+    addBboxRectangle(map, bbox, id, width) {
+      const coordinates = [
+        [bbox.getWest(), bbox.getNorth()],
+        [bbox.getEast(), bbox.getNorth()],
+        [bbox.getEast(), bbox.getSouth()],
+        [bbox.getWest(), bbox.getSouth()],
+        [bbox.getWest(), bbox.getNorth()]
+      ];
+      map.addSource(id, {
+        type: "geojson",
+        data: {
+          type: "Feature",
+          geometry: { type: "LineString", coordinates }
+        }
+      });
+      map.addLayer({
+        id,
+        type: "line",
+        source: id,
+        paint: {
+          "line-color": "#ffffff",
+          "line-width": width
+        }
+      });
+    }
+    setupDrawingLayers() {
+      this.main.addSource("drawn-features", {
+        type: "geojson",
+        data: { type: "FeatureCollection", features: [] }
+      });
+      this.main.addLayer({
+        id: "drawn-lines",
+        type: "line",
+        source: "drawn-features",
+        filter: ["==", ["geometry-type"], "LineString"],
+        paint: {
+          "line-color": ["get", "color"],
+          "line-width": 5,
+          "line-opacity": ["get", "opacity"]
+        }
+      });
+      this.main.addLayer({
+        id: "drawn-fills",
+        type: "fill",
+        source: "drawn-features",
+        filter: ["==", ["geometry-type"], "Polygon"],
+        paint: {
+          "fill-color": ["get", "color"],
+          "fill-opacity": ["*", ["get", "opacity"], 0.3]
+        }
+      });
+      this.main.addLayer({
+        id: "drawn-polygon-outlines",
+        type: "line",
+        source: "drawn-features",
+        filter: ["==", ["geometry-type"], "Polygon"],
+        paint: {
+          "line-color": ["get", "color"],
+          "line-width": 5,
+          "line-opacity": ["get", "opacity"]
+        }
+      });
+      this.main.addLayer({
+        id: "drawn-points",
+        type: "circle",
+        source: "drawn-features",
+        filter: ["==", ["geometry-type"], "Point"],
+        paint: {
+          "circle-color": ["get", "color"],
+          "circle-radius": ["get", "radius"],
+          "circle-opacity": ["get", "opacity"],
+          "circle-stroke-width": 2,
+          "circle-stroke-color": ["get", "color"]
+        }
+      });
+    }
+    setupDebugLayer() {
+      this.main.addSource("debug-rect", {
+        type: "geojson",
+        data: { type: "Feature", geometry: { type: "LineString", coordinates: [] } }
+      });
+      this.main.addLayer({
+        id: "debug-rect",
+        type: "line",
+        source: "debug-rect",
+        paint: {
+          "line-color": "#00ffff",
+          "line-width": 2,
+          "line-dasharray": [5, 5]
+        }
+      });
+      this.main.on("moveend", () => this.updateDebugRect());
+    }
+    // Calculate the no-pan zone
     getNoPanBounds() {
-      const currentBounds = this.main.getBounds();
-      const north = currentBounds.getNorth();
-      const south = currentBounds.getSouth();
-      const east = currentBounds.getEast();
-      const west = currentBounds.getWest();
+      const bounds = this.main.getBounds();
+      const north = bounds.getNorth();
+      const south = bounds.getSouth();
+      const east = bounds.getEast();
+      const west = bounds.getWest();
       const latHeight = north - south;
       const lngWidth = east - west;
-      return L.latLngBounds(
-        [south + 0.125 * latHeight, west + 0.125 * lngWidth],
-        [north - 0.05 * latHeight, east - 0.125 * lngWidth]
+      return new maplibregl.LngLatBounds(
+        [west + 0.125 * lngWidth, south + 0.125 * latHeight],
+        [east - 0.125 * lngWidth, north - 0.05 * latHeight]
       );
     }
     updateDebugRect() {
       const noPanBounds = this.getNoPanBounds();
-      if (this.debugRect) {
-        this.main.removeLayer(this.debugRect);
-      }
-      this.debugRect = L.rectangle(noPanBounds, {
-        color: "#00ffff",
-        weight: 2,
-        fill: false,
-        dashArray: "5, 5",
-        interactive: false
-      }).addTo(this.main);
+      const coordinates = [
+        [noPanBounds.getWest(), noPanBounds.getNorth()],
+        [noPanBounds.getEast(), noPanBounds.getNorth()],
+        [noPanBounds.getEast(), noPanBounds.getSouth()],
+        [noPanBounds.getWest(), noPanBounds.getSouth()],
+        [noPanBounds.getWest(), noPanBounds.getNorth()]
+      ];
+      this.main.getSource("debug-rect").setData({
+        type: "Feature",
+        geometry: { type: "LineString", coordinates }
+      });
     }
     pruneMapElements() {
       const visibleBounds = this.main.getBounds();
-      this.featureGroup.eachLayer((l) => {
-        const featureBounds = "getBounds" in l ? l.getBounds() : l.getLatLng().toBounds(10);
-        if (visibleBounds.intersects(featureBounds)) {
-          l.setStyle({ opacity: 0.5 });
+      this.activeFeatures = this.activeFeatures.filter((feature) => {
+        let coordPairs;
+        if (feature.geometry.type === "Point") {
+          coordPairs = [feature.geometry.coordinates];
+        } else if (feature.geometry.type === "Polygon") {
+          coordPairs = feature.geometry.coordinates[0] || [];
         } else {
-          this.featureGroup.removeLayer(l);
+          coordPairs = feature.geometry.coordinates;
         }
+        const isVisible = coordPairs.some((coord) => {
+          if (!coord || coord.length < 2) return false;
+          return visibleBounds.contains([coord[0], coord[1]]);
+        });
+        if (isVisible) {
+          feature.properties.opacity = 0.5;
+          return true;
+        }
+        return false;
       });
+      this.updateDrawnFeatures();
+    }
+    updateDrawnFeatures() {
+      const source = this.main.getSource("drawn-features");
+      if (source) {
+        source.setData({
+          type: "FeatureCollection",
+          features: this.activeFeatures
+        });
+      }
     }
     drawMapElement(change, cb) {
       this.pruneMapElements();
       const noPanBounds = this.getNoPanBounds();
-      if (!noPanBounds.contains(change.meta.bounds)) {
-        this.main.fitBounds(change.meta.bounds);
+      const changeBounds = change.meta.bounds;
+      const changeCenter = changeBounds.getCenter();
+      const boundsContained = noPanBounds.contains([changeCenter.lng, changeCenter.lat]);
+      if (!boundsContained) {
+        const distance2 = this.getDistanceFromCenter(changeCenter);
+        const duration = distance2 > 1e6 ? 3e3 : distance2 > 1e5 ? 2e3 : 1200;
+        this.main.fitBounds(
+          [
+            [changeBounds.getWest(), changeBounds.getSouth()],
+            [changeBounds.getEast(), changeBounds.getNorth()]
+          ],
+          {
+            maxZoom: 18,
+            padding: 200,
+            duration
+          }
+        );
       } else if (this.context.debug) {
         this.updateDebugRect();
       }
-      this.overviewMap.panTo(change.meta.bounds.getCenter());
+      const targetLat = changeCenter.lat;
+      const targetLng = changeCenter.lng;
+      const maxCenterLat = 50;
+      let centerLat = targetLat;
+      let pitch = 0;
+      if (Math.abs(targetLat) > maxCenterLat) {
+        centerLat = Math.sign(targetLat) * maxCenterLat;
+        const latBeyond = Math.abs(targetLat) - maxCenterLat;
+        pitch = Math.min(50, latBeyond * 1.2);
+      }
+      const isCloseToLast = this.lastOverviewLocation && Math.abs(targetLat - this.lastOverviewLocation.lat) < 5 && Math.abs(targetLng - this.lastOverviewLocation.lng) < 5;
+      if (!isCloseToLast) {
+        this.overviewMarker.getElement().style.display = "none";
+      }
+      this.overviewMarker.setLngLat([targetLng, targetLat]);
+      this.lastOverviewLocation = { lat: targetLat, lng: targetLng };
+      this.overviewMap.flyTo({
+        center: [targetLng, centerLat],
+        pitch,
+        duration: 1500
+      });
+      this.overviewMap.once("moveend", () => {
+        this.overviewMarker.getElement().style.display = "block";
+      });
       const color = {
         create: "#B7FF00",
+        // Green
         modify: "#FF00EA",
+        // Pink
         delete: "#FF0000"
+        // Red
       }[change.type];
       const drawTime = this.context.runTime * 0.7;
       const waitTime = this.context.runTime - drawTime;
       const mapElement = change.type === "delete" ? change.old : change.neu;
-      switch (mapElement.type) {
-        case "way": {
-          let drawPt = function(pt) {
-            newLine.addLatLng(pt);
-            if (mapElement.linestring.length) {
-              window.setTimeout(() => {
-                drawPt(mapElement.linestring.pop());
-              }, perPt);
-            } else {
-              window.setTimeout(cb, waitTime);
-            }
-          };
-          let newLine;
-          if (mapElement.tags.building || mapElement.tags.area) {
-            newLine = L.polygon([], {
-              opacity: 1,
-              color,
-              fill: color,
-              weight: 5,
-              interactive: false
-            }).addTo(this.featureGroup);
-          } else {
-            newLine = L.polyline([], {
-              opacity: 1,
-              color,
-              weight: 5,
-              interactive: false
-            }).addTo(this.featureGroup);
+      const featureId = `feature-${this.featureCounter++}`;
+      const distance = this.getDistanceFromCenter(changeCenter);
+      const isBigJump = !boundsContained && distance > 1e3;
+      const startDrawing = () => {
+        switch (mapElement.type) {
+          case "way": {
+            this.drawWay(mapElement, color, featureId, drawTime, waitTime, cb);
+            break;
           }
-          const perPt = drawTime / mapElement.linestring.length;
-          newLine.addLatLng(mapElement.linestring.pop());
-          drawPt(mapElement.linestring.pop());
-          break;
-        }
-        case "node": {
-          let nodeMarkerAnimation = function() {
-            newMarker.setRadius(radii.shift());
-            if (radii.length) {
-              window.setTimeout(nodeMarkerAnimation, perRadius);
-            } else {
-              window.setTimeout(cb, waitTime);
-            }
-          };
-          const radii = [];
-          for (let i = 0; i <= 25; i += 1) {
-            radii.push(17 * Math.sin(i / 10));
+          case "node": {
+            this.drawNode(mapElement, color, featureId, drawTime, waitTime, cb);
+            break;
           }
-          const newMarker = L.circleMarker([mapElement.lat, mapElement.lon], {
-            opacity: 1,
-            color,
-            weight: 5,
-            interactive: false
-          }).addTo(this.featureGroup);
-          const perRadius = drawTime / radii.length;
-          nodeMarkerAnimation();
-          break;
+          default: {
+            console.warn("Unknown mapElement type:", mapElement.type);
+            cb();
+          }
         }
+      };
+      if (isBigJump) {
+        this.main.once("moveend", startDrawing);
+      } else {
+        startDrawing();
       }
+    }
+    getDistanceFromCenter(lngLat) {
+      const center = this.main.getCenter();
+      const R = 6371e3;
+      const lat1 = center.lat * Math.PI / 180;
+      const lat2 = lngLat.lat * Math.PI / 180;
+      const dLat = (lngLat.lat - center.lat) * Math.PI / 180;
+      const dLng = (lngLat.lng - center.lng) * Math.PI / 180;
+      const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return R * c;
+    }
+    drawWay(mapElement, color, featureId, drawTime, waitTime, cb) {
+      const isPolygon = mapElement.tags.building || mapElement.tags.area;
+      const linestring = [...mapElement.linestring];
+      const coordinates = [];
+      const perPt = drawTime / linestring.length;
+      const feature = {
+        type: "Feature",
+        id: featureId,
+        properties: { color, opacity: 1, id: featureId },
+        geometry: {
+          type: isPolygon ? "Polygon" : "LineString",
+          coordinates: isPolygon ? [[]] : []
+        }
+      };
+      this.activeFeatures.push(feature);
+      const drawPt = () => {
+        if (linestring.length) {
+          const pt = linestring.pop();
+          coordinates.push([pt[1], pt[0]]);
+          if (isPolygon) {
+            feature.geometry.coordinates = [coordinates];
+          } else {
+            feature.geometry.coordinates = coordinates;
+          }
+          this.updateDrawnFeatures();
+          window.setTimeout(drawPt, perPt);
+        } else {
+          window.setTimeout(cb, waitTime);
+        }
+      };
+      if (linestring.length) {
+        const pt = linestring.pop();
+        coordinates.push([pt[1], pt[0]]);
+        if (isPolygon) {
+          feature.geometry.coordinates = [coordinates];
+        } else {
+          feature.geometry.coordinates = coordinates;
+        }
+        this.updateDrawnFeatures();
+        drawPt();
+      }
+    }
+    drawNode(mapElement, color, featureId, drawTime, waitTime, cb) {
+      const radii = [];
+      for (let i = 0; i <= 25; i += 1) {
+        radii.push(17 * Math.sin(i / 10));
+      }
+      const feature = {
+        type: "Feature",
+        id: featureId,
+        properties: { color, opacity: 1, radius: 0, id: featureId },
+        geometry: {
+          type: "Point",
+          coordinates: [mapElement.lon, mapElement.lat]
+        }
+      };
+      this.activeFeatures.push(feature);
+      const perRadius = drawTime / radii.length;
+      const animateRadius = () => {
+        if (radii.length) {
+          feature.properties.radius = radii.shift();
+          this.updateDrawnFeatures();
+          window.setTimeout(animateRadius, perRadius);
+        } else {
+          window.setTimeout(cb, waitTime);
+        }
+      };
+      animateRadius();
     }
   };
 
@@ -5282,17 +5526,20 @@
     const type2 = c.old && c.old.type || c.neu && c.neu.type;
     let within = false;
     if (type2 == "way") {
-      const bboxIntersectsOld = c.old && c.old.bounds && bbox.intersects(makeBbox(c.old.bounds));
-      const bboxIntersectsNew = c.neu && c.neu.bounds && bbox.intersects(makeBbox(c.neu.bounds));
+      const bboxIntersectsOld = c.old && c.old.bounds && bboxIntersects(bbox, makeBbox(c.old.bounds));
+      const bboxIntersectsNew = c.neu && c.neu.bounds && bboxIntersects(bbox, makeBbox(c.neu.bounds));
       within = bboxIntersectsOld || bboxIntersectsNew;
     } else if (type2 == "node") {
-      const bboxContainsOld = c.old && c.old.lat && c.old.lon && bbox.contains(new L.LatLng(c.old.lat, c.old.lon));
-      const bboxContainsNew = c.neu && c.neu.lat && c.neu.lon && bbox.contains(new L.LatLng(c.neu.lat, c.neu.lon));
+      const bboxContainsOld = c.old && c.old.lat && c.old.lon && bbox.contains([c.old.lon, c.old.lat]);
+      const bboxContainsNew = c.neu && c.neu.lat && c.neu.lon && bbox.contains([c.neu.lon, c.neu.lat]);
       within = bboxContainsOld || bboxContainsNew;
     } else {
       console.error("no bbox check for this geometry type");
     }
     return within;
+  }
+  function bboxIntersects(bbox1, bbox2) {
+    return !(bbox2.getWest() > bbox1.getEast() || bbox2.getEast() < bbox1.getWest() || bbox2.getSouth() > bbox1.getNorth() || bbox2.getNorth() < bbox1.getSouth());
   }
   function hasTags(change) {
     return change.neu && Object.keys(change.neu.tags || {}).length > 0 || change.old && Object.keys(change.old.tags || {}).length > 0;
