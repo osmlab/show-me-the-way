@@ -4588,6 +4588,7 @@
       }
       this.featureCounter = 0;
       this.activeFeatures = [];
+      this.currentChangesetId = null;
       this.main.on("load", () => {
         this.setupDrawingLayers();
         if (this.context.debug) {
@@ -4748,15 +4749,52 @@
         });
       }
     }
+    // Calculate bounding box containing all active features
+    getActiveFeaturesBounds() {
+      const bounds = new maplibregl.LngLatBounds();
+      for (const feature of this.activeFeatures) {
+        const geom = feature.geometry;
+        if (geom.type === "Point") {
+          bounds.extend(geom.coordinates);
+        } else if (geom.type === "LineString") {
+          for (const coord of geom.coordinates) {
+            bounds.extend(coord);
+          }
+        } else if (geom.type === "Polygon") {
+          for (const coord of geom.coordinates[0] || []) {
+            bounds.extend(coord);
+          }
+        }
+      }
+      return bounds;
+    }
     drawMapElement(change, cb) {
       this.pruneMapElements();
       const noPanBounds = this.getNoPanBounds();
       const changeBounds = change.meta.bounds;
       const changeCenter = changeBounds.getCenter();
+      const changesetId = change.meta.changeset;
+      const distance = this.getDistanceFromCenter(changeCenter);
+      const isSameChangeset = this.currentChangesetId === changesetId;
+      const isNearby = distance <= 5e3;
       const boundsContained = noPanBounds.contains([changeCenter.lng, changeCenter.lat]);
-      if (!boundsContained) {
-        const distance2 = this.getDistanceFromCenter(changeCenter);
-        const duration = distance2 > 1e6 ? 3e3 : distance2 > 1e5 ? 2e3 : 1200;
+      if (isSameChangeset && isNearby && !boundsContained) {
+        const combinedBounds = this.getActiveFeaturesBounds();
+        combinedBounds.extend([changeBounds.getWest(), changeBounds.getSouth()]);
+        combinedBounds.extend([changeBounds.getEast(), changeBounds.getNorth()]);
+        this.main.fitBounds(
+          [
+            [combinedBounds.getWest(), combinedBounds.getSouth()],
+            [combinedBounds.getEast(), combinedBounds.getNorth()]
+          ],
+          {
+            maxZoom: 18,
+            padding: { top: 50, bottom: 200, left: 100, right: 100 },
+            duration: 500
+          }
+        );
+      } else if (!boundsContained) {
+        const duration = distance > 1e6 ? 3e3 : distance > 1e5 ? 2e3 : 1200;
         this.main.fitBounds(
           [
             [changeBounds.getWest(), changeBounds.getSouth()],
@@ -4764,12 +4802,15 @@
           ],
           {
             maxZoom: 18,
-            padding: 200,
+            padding: { top: 50, bottom: 200, left: 100, right: 100 },
             duration
           }
         );
       } else if (this.context.debug) {
         this.updateDebugRect();
+      }
+      if (!this.currentChangesetId || !isSameChangeset) {
+        this.currentChangesetId = changesetId;
       }
       const targetLat = changeCenter.lat;
       const targetLng = changeCenter.lng;
@@ -4807,8 +4848,6 @@
       const waitTime = this.context.runTime - drawTime;
       const mapElement = change.type === "delete" ? change.old : change.neu;
       const featureId = `feature-${this.featureCounter++}`;
-      const distance = this.getDistanceFromCenter(changeCenter);
-      const isBigJump = !boundsContained && distance > 1e3;
       const startDrawing = () => {
         switch (mapElement.type) {
           case "way": {
@@ -4825,7 +4864,7 @@
           }
         }
       };
-      if (isBigJump) {
+      if (!isNearby) {
         this.main.once("moveend", startDrawing);
       } else {
         startDrawing();
