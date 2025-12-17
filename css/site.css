@@ -8,7 +8,7 @@
     --largeFontSize: 2rem;
     --mediumFontSize: 1.5rem;
     --smallFontSize: 1rem;
-    --largeMargin: 2rem 8rem;
+    --largeMargin: 2rem 6rem;
     --mediumMargin: 1rem;
     --smallMargin: 0;
 }
@@ -39,7 +39,7 @@ h1 {
     position: absolute;
     background: var(--backgroundColor);
     margin: var(--largeMargin);
-    line-height: 1.3333;
+    line-height: 1.25;
     opacity: 0;
 }
 
@@ -67,6 +67,10 @@ h1 {
     position: relative;
 }
 
+#overview_map canvas.maplibregl-canvas {
+    filter: saturate(0) invert(1);
+}
+
 .indicator {
     position:absolute;
     top:5px;
@@ -75,6 +79,7 @@ h1 {
     z-index:501;
     font-size: var(--smallFontSize);
 }
+
 
 
 .leaflet-control-attribution {
@@ -89,7 +94,6 @@ h1 {
 
 #reverse-location {
     max-width: 300px;
-    font-size: calc(12px + 0.375em);
 }
 
 #metadata {
@@ -97,7 +101,7 @@ h1 {
 }
 
 #comment {
-    font-size: calc(12px + 0.375em);
+    padding-top: 0;
 }
 
 /* large */
