@@ -105,12 +105,12 @@ class Maps {
         // Apply filtered bbox if set
         if (filteredBbox) {
             const bounds = [[bbox.getWest(), bbox.getSouth()], [bbox.getEast(), bbox.getNorth()]];
-            
+
             this.main.on('load', () => {
                 this.main.fitBounds(bounds, { padding: 50, duration: 0 });
                 this.addBboxRectangle(this.main, bbox, 'main-bbox-rect', 5);
             });
-            
+
             this.overviewMap.on('load', () => {
                 this.overviewMap.fitBounds(bounds, { padding: 20, duration: 0 });
                 this.addBboxRectangle(this.overviewMap, bbox, 'overview-bbox-rect', 1);
@@ -120,6 +120,9 @@ class Maps {
         // Track features for cleanup
         this.featureCounter = 0;
         this.activeFeatures = [];
+
+        // Track current changeset
+        this.currentChangesetId = null;
 
         this.main.on('load', () => {
             this.setupDrawingLayers();
@@ -314,19 +317,63 @@ class Maps {
         }
     }
 
+    // Calculate bounding box containing all active features
+    getActiveFeaturesBounds() {
+        const bounds = new maplibregl.LngLatBounds();
+
+        for (const feature of this.activeFeatures) {
+            const geom = feature.geometry;
+
+            if (geom.type === 'Point') {
+                bounds.extend(geom.coordinates);
+            } else if (geom.type === 'LineString') {
+                for (const coord of geom.coordinates) {
+                    bounds.extend(coord);
+                }
+            } else if (geom.type === 'Polygon') {
+                for (const coord of geom.coordinates[0] || []) {
+                    bounds.extend(coord);
+                }
+            }
+        }
+
+        return bounds;
+    }
+
     drawMapElement(change, cb) {
         this.pruneMapElements();
 
         const noPanBounds = this.getNoPanBounds();
         const changeBounds = change.meta.bounds;
         const changeCenter = changeBounds.getCenter();
+        const changesetId = change.meta.changeset;
+        const distance = this.getDistanceFromCenter(changeCenter);
+
+        // Check if this change is a continuation of the same changeset and close enough by
+        const isSameChangeset = this.currentChangesetId === changesetId;
+        const isNearby = distance <= 5000; // 5km threshold
 
         // Determine if we need to fly to the change
         const boundsContained = noPanBounds.contains([changeCenter.lng, changeCenter.lat]);
 
-        if (!boundsContained) {
-            // Fly to fit the change bounds
-            const distance = this.getDistanceFromCenter(changeCenter);
+        if (isSameChangeset && isNearby && !boundsContained) {
+            // Same changeset and nearby: fit viewport to all active geometry + new change
+            const combinedBounds = this.getActiveFeaturesBounds();
+
+            // Extend to include the new change
+            combinedBounds.extend([changeBounds.getWest(), changeBounds.getSouth()]);
+            combinedBounds.extend([changeBounds.getEast(), changeBounds.getNorth()]);
+
+            this.main.fitBounds(
+                [[combinedBounds.getWest(), combinedBounds.getSouth()],
+                 [combinedBounds.getEast(), combinedBounds.getNorth()]],
+                {
+                    maxZoom: 18,
+                    padding: { top: 50, bottom: 200, left: 100, right: 100 },
+                    duration: 500
+                }
+            );
+        } else if (!boundsContained) {
             // If the change is more than 1000km away it's a big jump so give it more time to pan
             const duration = distance > 1000000 ? 3000 : distance > 100000 ? 2000 : 1200;
             
@@ -335,12 +382,17 @@ class Maps {
                  [changeBounds.getEast(), changeBounds.getNorth()]],
                 {
                     maxZoom: 18,
-                    padding: 200,
+                    padding: { top: 50, bottom: 200, left: 100, right: 100 },
                     duration: duration
                 }
             );
         } else if (this.context.debug) {
             this.updateDebugRect();
+        }
+
+        // Update changeset tracking
+        if (!this.currentChangesetId || !isSameChangeset) {
+            this.currentChangesetId = changesetId;
         }
 
         // Spin the overview globe to the new location
@@ -397,9 +449,6 @@ class Maps {
         const mapElement = change.type === 'delete' ? change.old : change.neu;
         const featureId = `feature-${this.featureCounter++}`;
 
-        // Calculate distance to determine if this is a "big jump"
-        const distance = this.getDistanceFromCenter(changeCenter);
-        const isBigJump = !boundsContained && distance > 1000; // > 1km
 
         const startDrawing = () => {
             switch (mapElement.type) {
@@ -419,7 +468,7 @@ class Maps {
             }
         };
 
-        if (isBigJump) {
+        if (!isNearby) {
             // Wait for map to finish panning before drawing
             this.main.once('moveend', startDrawing);
         } else {
