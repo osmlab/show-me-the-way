@@ -16,7 +16,7 @@
   "dependencies": {
     "buffer": "^6.0.3",
     "date-fns": "^4.1.0",
-    "lru-cache": "^4.0.2",
+    "lru-cache": "^11.2.4",
     "mustache": "^4.2.0",
     "osm-stream": "github:osmlab/osm-stream#v0.0.15"
   },

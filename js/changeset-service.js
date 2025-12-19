@@ -1,4 +1,4 @@
-import LRU from 'lru-cache';
+import { LRUCache } from 'lru-cache';
 import { fetchWithRetry } from './utils';
 
 const STORAGE_KEY = 'smtw-changesets';
@@ -16,15 +16,15 @@ class ChangesetService {
         try {
             const stored = localStorage.getItem(STORAGE_KEY);
             if (stored) {
-                const cache = LRU(MAX_SIZE);
+                const cache = new LRUCache({ max: MAX_SIZE });
                 cache.load(JSON.parse(stored));
-                console.log(`[ChangesetService] Loaded ${cache.length} entries from cache`);
+                console.log(`[ChangesetService] Loaded ${cache.size} entries from cache`);
                 return cache;
             }
         } catch (err) {
             console.warn('[ChangesetService] Failed to load cache:', err.message);
         }
-        return LRU(MAX_SIZE);
+        return new LRUCache({ max: MAX_SIZE });
     }
 
     saveToStorage() {
@@ -33,7 +33,7 @@ class ChangesetService {
             try {
                 const data = JSON.stringify(this.cache.dump());
                 localStorage.setItem(STORAGE_KEY, data);
-                console.log(`[ChangesetService] Saved ${this.cache.length} entries to cache`);
+                console.log(`[ChangesetService] Saved ${this.cache.size} entries to cache`);
             } catch (err) {
                 console.warn('[ChangesetService] Failed to save cache:', err.message);
             }
