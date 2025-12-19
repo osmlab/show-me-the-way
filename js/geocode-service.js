@@ -1,4 +1,4 @@
-import LRU from 'lru-cache';
+import { LRUCache } from 'lru-cache';
 import { fetchWithRetry, distanceBetween } from './utils';
 
 const STORAGE_KEY = 'smtw-geocodes';
@@ -17,15 +17,15 @@ class GeocodeService {
         try {
             const stored = localStorage.getItem(STORAGE_KEY);
             if (stored) {
-                const cache = LRU(MAX_SIZE);
+                const cache = new LRUCache({ max: MAX_SIZE });
                 cache.load(JSON.parse(stored));
-                console.log(`[GeocodeService] Loaded ${cache.length} entries from cache`);
+                console.log(`[GeocodeService] Loaded ${cache.size} entries from cache`);
                 return cache;
             }
         } catch (err) {
             console.warn('[GeocodeService] Failed to load cache:', err.message);
         }
-        return LRU(MAX_SIZE);
+        return new LRUCache({ max: MAX_SIZE });
     }
 
     saveToStorage() {
@@ -34,7 +34,7 @@ class GeocodeService {
             try {
                 const data = JSON.stringify(this.cache.dump());
                 localStorage.setItem(STORAGE_KEY, data);
-                console.log(`[GeocodeService] Saved ${this.cache.length} entries to cache`);
+                console.log(`[GeocodeService] Saved ${this.cache.size} entries to cache`);
             } catch (err) {
                 console.warn('[GeocodeService] Failed to save cache:', err.message);
             }
@@ -75,7 +75,7 @@ class GeocodeService {
      * Find a cached geocode within threshold distance
      */
     findNearbyCache(lat, lon) {
-        const closeByKey = this.cache.keys().find((key) => {
+        const closeByKey = [...this.cache.keys()].find((key) => {
             const [cachedLat, cachedLon] = key.split(',').map(parseFloat);
             return distanceBetween(lat, lon, cachedLat, cachedLon) < CLOSE_THRESHOLD_METERS;
         });
