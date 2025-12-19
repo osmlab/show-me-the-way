@@ -7,21 +7,24 @@
   "scripts": {
     "lint": "eslint js/*.js",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "esbuild js/site.js --bundle --outfile=js/bundle.js --format=iife --target=es2020 --alias:util=./js/shims/util.js --alias:stream=./js/shims/stream.js --define:process.env={} --inject:./js/shims/buffer-global.js"
+    "build": "esbuild js/site.js --bundle --outfile=js/bundle.js --format=iife --target=es2020 --alias:util=./js/shims/util.js --alias:stream=./js/shims/stream.js --define:process.env={} --inject:./js/shims/buffer-global.js --log-level=info",
+    "dev": "concurrently --names \"esbuild,serve\" -c \"cyan,yellow\" \"npm run build -- --watch\" \"serve\""
   },
   "repository": "",
   "author": "",
   "license": "BSD",
   "dependencies": {
     "buffer": "^6.0.3",
-    "date-fns": "^2.28.0",
+    "date-fns": "^4.1.0",
     "lru-cache": "^4.0.2",
     "mustache": "^4.2.0",
     "osm-stream": "github:osmlab/osm-stream#v0.0.15"
   },
   "devDependencies": {
-    "esbuild": "^0.25.0",
-    "eslint": "^8.18.0"
+    "concurrently": "^9.1.2",
+    "esbuild": "^0.27.1",
+    "eslint": "^8.18.0",
+    "serve": "^14.2.4"
   },
   "eslintConfig": {
     "extends": "eslint:recommended",
