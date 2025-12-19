@@ -374,16 +374,13 @@ class Maps {
                 }
             );
         } else if (!boundsContained) {
-            // If the change is more than 1000km away it's a big jump so give it more time to pan
-            const duration = distance > 1000000 ? 3000 : distance > 100000 ? 2000 : 1200;
-            
             this.main.fitBounds(
                 [[changeBounds.getWest(), changeBounds.getSouth()],
                  [changeBounds.getEast(), changeBounds.getNorth()]],
                 {
                     maxZoom: 18,
                     padding: { top: 50, bottom: 200, left: 100, right: 100 },
-                    duration: duration
+                    duration: this.getFlightDuration(distance)
                 }
             );
         } else if (this.context.debug) {
@@ -395,53 +392,9 @@ class Maps {
             this.currentChangesetId = changesetId;
         }
 
-        // Spin the overview globe to the new location
-        // Clamp latitude and use pitch for polar regions to keep equator visible
-        const targetLat = changeCenter.lat;
-        const targetLng = changeCenter.lng;
-        const maxCenterLat = 50; // Don't pan center beyond this latitude
-        
-        let centerLat = targetLat;
-        let pitch = 0;
-        
-        if (Math.abs(targetLat) > maxCenterLat) {
-            // Clamp the center latitude
-            centerLat = Math.sign(targetLat) * maxCenterLat;
-            // Calculate pitch based on how far beyond the limit we are
-            const latBeyond = Math.abs(targetLat) - maxCenterLat;
-            pitch = Math.min(50, latBeyond * 1.2);
-        }
-        
-        // Check if new location is close to the last one (within ~500km)
-        const isCloseToLast = this.lastOverviewLocation && 
-            Math.abs(targetLat - this.lastOverviewLocation.lat) < 5 &&
-            Math.abs(targetLng - this.lastOverviewLocation.lng) < 5;
-        
-        // Hide marker during animation if location changed significantly
-        if (!isCloseToLast) {
-            this.overviewMarker.getElement().style.display = 'none';
-        }
-        
-        // Update marker to target location
-        this.overviewMarker.setLngLat([targetLng, targetLat]);
-        this.lastOverviewLocation = { lat: targetLat, lng: targetLng };
-        
-        this.overviewMap.flyTo({
-            center: [targetLng, centerLat],
-            pitch: pitch,
-            duration: 1500
-        });
-        
-        // Show marker after animation completes
-        this.overviewMap.once('moveend', () => {
-            this.overviewMarker.getElement().style.display = 'block';
-        });
+        this.updateOverviewGlobe(changeCenter);
 
-        const color = {
-            create: '#B7FF00', // Green
-            modify: '#FF00EA', // Pink
-            delete: '#FF0000' // Red
-        }[change.type];
+        const color = this.getChangeColor(change.type);
 
         const drawTime = this.context.runTime * 0.7;
         const waitTime = this.context.runTime - drawTime;
@@ -494,9 +447,62 @@ class Maps {
         return R * c;
     }
 
+    getChangeColor(type) {
+        return {
+            create: '#B7FF00',
+            modify: '#FF00EA',
+            delete: '#FF0000'
+        }[type];
+    }
+
+    getFlightDuration(distance) {
+        return distance > 1000000 ? 3000 : distance > 100000 ? 2000 : 1200;
+    }
+
+    updateOverviewGlobe(center, alwaysHideMarker = false) {
+        const targetLat = center.lat;
+        const targetLng = center.lng;
+        const maxCenterLat = 50;
+
+        let centerLat = targetLat;
+        let pitch = 0;
+
+        if (Math.abs(targetLat) > maxCenterLat) {
+            centerLat = Math.sign(targetLat) * maxCenterLat;
+            const latBeyond = Math.abs(targetLat) - maxCenterLat;
+            pitch = Math.min(50, latBeyond * 1.2);
+        }
+
+        // Check if new location is close to the last one (within ~500km)
+        const isCloseToLast = !alwaysHideMarker && this.lastOverviewLocation &&
+            Math.abs(targetLat - this.lastOverviewLocation.lat) < 5 &&
+            Math.abs(targetLng - this.lastOverviewLocation.lng) < 5;
+
+        // Hide marker during animation if location changed significantly
+        if (!isCloseToLast) {
+            this.overviewMarker.getElement().style.display = 'none';
+        }
+
+        this.overviewMarker.setLngLat([targetLng, targetLat]);
+        this.lastOverviewLocation = { lat: targetLat, lng: targetLng };
+
+        this.overviewMap.flyTo({
+            center: [targetLng, centerLat],
+            pitch: pitch,
+            duration: 1500
+        });
+
+        this.overviewMap.once('moveend', () => {
+            this.overviewMarker.getElement().style.display = 'block';
+        });
+    }
+
     drawWay(mapElement, color, featureId, drawTime, waitTime, cb) {
         const isPolygon = mapElement.tags.building || mapElement.tags.area;
         const linestring = [...mapElement.linestring]; // Clone to avoid mutation
+        if (Math.random() > 0.5) {
+            linestring.reverse(); // Randomize winding direction for variety
+        }
         const coordinates = [];
         const perPt = drawTime / linestring.length;
 
@@ -527,6 +533,9 @@ class Maps {
                 this.updateDrawnFeatures();
                 window.setTimeout(drawPt, perPt);
             } else {
+                // Fade opacity once animation completes
+                feature.properties.opacity = 0.5;
+                this.updateDrawnFeatures();
                 window.setTimeout(cb, waitTime);
             }
         };
@@ -572,11 +581,127 @@ class Maps {
                 this.updateDrawnFeatures();
                 window.setTimeout(animateRadius, perRadius);
             } else {
+                // Fade opacity once animation completes
+                feature.properties.opacity = 0.5;
+                this.updateDrawnFeatures();
                 window.setTimeout(cb, waitTime);
             }
         };
 
         animateRadius();
+    }
+
+    // Draw multiple changes simultaneously
+    drawMapElementBatch(changes, cb) {
+        this.pruneMapElements();
+
+        // Calculate combined bounds for all changes
+        const combinedBounds = new maplibregl.LngLatBounds();
+        for (const change of changes) {
+            const changeBounds = change.meta.bounds;
+            combinedBounds.extend([changeBounds.getWest(), changeBounds.getSouth()]);
+            combinedBounds.extend([changeBounds.getEast(), changeBounds.getNorth()]);
+        }
+
+        const changeCenter = combinedBounds.getCenter();
+        const changesetId = changes[0].meta.changeset;
+
+        // Update changeset tracking
+        this.currentChangesetId = changesetId;
+
+        // Move viewport to fit all changes
+        const distance = this.getDistanceFromCenter(changeCenter);
+
+        this.main.fitBounds(
+            [[combinedBounds.getWest(), combinedBounds.getSouth()],
+             [combinedBounds.getEast(), combinedBounds.getNorth()]],
+            {
+                maxZoom: 17, // Slightly lower max zoom for batches
+                padding: 150,
+                duration: this.getFlightDuration(distance)
+            }
+        );
+
+        this.updateOverviewGlobe(changeCenter, true);
+
+        // Track completion of all drawings
+        let completedCount = 0;
+        const totalCount = changes.length;
+
+        const onDrawingComplete = () => {
+            completedCount++;
+            if (completedCount === totalCount) {
+                cb();
+            }
+        };
+
+        // Start drawings in waves with limited concurrency
+        const startAllDrawings = () => {
+            // Randomize concurrent drawings between 4 and 7 for variety
+            const CONCURRENT_DRAWINGS = 4 + Math.floor(Math.random() * 4);
+            const baseDrawTime = this.context.runTime * 0.7;
+            // Space starts so roughly CONCURRENT_DRAWINGS are drawing at once
+            const spacingPerItem = baseDrawTime / CONCURRENT_DRAWINGS;
+
+            changes.forEach((change, index) => {
+                // Base delay staggers items so ~N overlap
+                const baseDelay = index * spacingPerItem;
+                // Add jitter: +/- 50% of spacing (wider variation)
+                const jitter = (Math.random() - 0.5) * spacingPerItem;
+                const startDelay = Math.max(0, baseDelay + jitter);
+                
+                // Non-linear speed: bias toward extremes
+                // Random value 0-1, then transform to get more slow and fast, fewer medium
+                const r = Math.random();
+                // Use a curve that pushes values toward edges: 0.5x to 3x range
+                // r < 0.5 -> slower (0.5 to 1.0), r >= 0.5 -> faster (1.0 to 3.0)
+                const speedMultiplier = r < 0.5 
+                    ? 0.5 + r             // 0.5 to 1.0 (slower half)
+                    : 1.0 + (r - 0.5) * 4; // 1.0 to 3.0 (faster half)
+
+                setTimeout(() => {
+                    this.drawSingleElement(change, speedMultiplier, onDrawingComplete);
+                }, startDelay);
+            });
+        };
+
+        // Wait for viewport to settle before drawing
+        if (distance > 1000) {
+            this.main.once('moveend', startAllDrawings);
+        } else {
+            startAllDrawings();
+        }
+    }
+
+    /**
+     * Draw a single element with custom speed (used by batch drawing)
+     * speedMultiplier only affects ways; nodes use consistent timing
+     */
+    drawSingleElement(change, speedMultiplier, cb) {
+        const color = this.getChangeColor(change.type);
+        const baseDrawTime = this.context.runTime * 0.7;
+        const waitTime = 0; // No wait time in batch mode - we track completion separately
+
+        const mapElement = change.type === 'delete' ? change.old : change.neu;
+        const featureId = `feature-${this.featureCounter++}`;
+
+        switch (mapElement.type) {
+            case 'way': {
+                // Ways get varied speed
+                const drawTime = baseDrawTime * speedMultiplier;
+                this.drawWay(mapElement, color, featureId, drawTime, waitTime, cb);
+                break;
+            }
+            case 'node': {
+                // Nodes use consistent timing
+                this.drawNode(mapElement, color, featureId, baseDrawTime, waitTime, cb);
+                break;
+            }
+            default: {
+                console.warn('Unknown mapElement type:', mapElement.type);
+                cb();
+            }
+        }
     }
 }
 
