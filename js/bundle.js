@@ -5,6 +5,10 @@
   var __getOwnPropNames = Object.getOwnPropertyNames;
   var __getProtoOf = Object.getPrototypeOf;
   var __hasOwnProp = Object.prototype.hasOwnProperty;
+  var __typeError = (msg) => {
+    throw TypeError(msg);
+  };
+  var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
   var __esm = (fn2, res) => function __init() {
     return fn2 && (res = (0, fn2[__getOwnPropNames(fn2)[0]])(fn2 = 0)), res;
   };
@@ -32,12 +36,24 @@
     mod
   ));
   var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
+  var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
+  var __accessCheck = (obj, member, msg) => member.has(obj) || __typeError("Cannot " + msg);
+  var __privateGet = (obj, member, getter) => (__accessCheck(obj, member, "read from private field"), getter ? getter.call(obj) : member.get(obj));
+  var __privateAdd = (obj, member, value) => member.has(obj) ? __typeError("Cannot add the same private member more than once") : member instanceof WeakSet ? member.add(obj) : member.set(obj, value);
+  var __privateSet = (obj, member, value, setter) => (__accessCheck(obj, member, "write to private field"), setter ? setter.call(obj, value) : member.set(obj, value), value);
+  var __privateMethod = (obj, member, method) => (__accessCheck(obj, member, "access private method"), method);
+  var __privateWrapper = (obj, member, setter, getter) => ({
+    set _(value) {
+      __privateSet(obj, member, value, setter);
+    },
+    get _() {
+      return __privateGet(obj, member, getter);
+    }
+  });
 
   // <define:process.env>
-  var define_process_env_default;
   var init_define_process_env = __esm({
     "<define:process.env>"() {
-      define_process_env_default = {};
     }
   });
 
@@ -670,7 +686,7 @@
         if (this === b) return true;
         return Buffer3.compare(this, b) === 0;
       };
-      Buffer3.prototype.inspect = function inspect2() {
+      Buffer3.prototype.inspect = function inspect() {
         let str = "";
         const max = exports2.INSPECT_MAX_BYTES;
         str = this.toString("hex", 0, max).replace(/(.{2})/g, "$1 ").trim();
@@ -1803,7 +1819,7 @@
       function numberIsNaN(obj) {
         return obj !== obj;
       }
-      var hexSliceLookupTable = function() {
+      var hexSliceLookupTable = (function() {
         const alphabet = "0123456789abcdef";
         const table = new Array(256);
         for (let i = 0; i < 16; ++i) {
@@ -1813,7 +1829,7 @@
           }
         }
         return table;
-      }();
+      })();
       function defineBigIntMethod(fn2) {
         return typeof BigInt === "undefined" ? BufferBigIntNotDefined : fn2;
       }
@@ -1837,11 +1853,11 @@
     "node_modules/reqwest/reqwest.js"(exports, module) {
       init_define_process_env();
       init_buffer_global();
-      !function(name, context, definition) {
+      !(function(name, context, definition) {
         if (typeof module != "undefined" && module.exports) module.exports = definition();
         else if (typeof define == "function" && define.amd) define(definition);
         else context[name] = definition();
-      }("reqwest", exports, function() {
+      })("reqwest", exports, function() {
         var win = window, doc = document, twoHundo = /^20\d$/, byTag = "getElementsByTagName", readyState = "readyState", contentType = "Content-Type", requestedWith = "X-Requested-With", head = doc[byTag]("head")[0], uniqid = 0, callbackPrefix = "reqwest_" + +/* @__PURE__ */ new Date(), lastValue, xmlHttpRequest = "XMLHttpRequest", noop = function() {
         }, isArray = typeof Array.isArray == "function" ? Array.isArray : function(a) {
           return a instanceof Array;
@@ -2580,7 +2596,7 @@
       var reqwest2 = require_reqwest();
       var qs = require_qs();
       var through = require_through();
-      var osmStream2 = function osmMinutely() {
+      var osmStream2 = (function osmMinutely() {
         var s = {};
         var baseUrl = "https://overpass-api.de/", minuteStatePath = "api/augmented_diff_status", changePath = "api/augmented_diff?";
         function minuteStateUrl() {
@@ -2803,858 +2819,8 @@
           return { cancel: setCancel };
         };
         return s;
-      }();
+      })();
       module2.exports = osmStream2;
-    }
-  });
-
-  // node_modules/pseudomap/pseudomap.js
-  var require_pseudomap = __commonJS({
-    "node_modules/pseudomap/pseudomap.js"(exports2, module2) {
-      init_define_process_env();
-      init_buffer_global();
-      var hasOwnProperty = Object.prototype.hasOwnProperty;
-      module2.exports = PseudoMap;
-      function PseudoMap(set2) {
-        if (!(this instanceof PseudoMap))
-          throw new TypeError("Constructor PseudoMap requires 'new'");
-        this.clear();
-        if (set2) {
-          if (set2 instanceof PseudoMap || typeof Map === "function" && set2 instanceof Map)
-            set2.forEach(function(value, key) {
-              this.set(key, value);
-            }, this);
-          else if (Array.isArray(set2))
-            set2.forEach(function(kv) {
-              this.set(kv[0], kv[1]);
-            }, this);
-          else
-            throw new TypeError("invalid argument");
-        }
-      }
-      PseudoMap.prototype.forEach = function(fn2, thisp) {
-        thisp = thisp || this;
-        Object.keys(this._data).forEach(function(k) {
-          if (k !== "size")
-            fn2.call(thisp, this._data[k].value, this._data[k].key);
-        }, this);
-      };
-      PseudoMap.prototype.has = function(k) {
-        return !!find(this._data, k);
-      };
-      PseudoMap.prototype.get = function(k) {
-        var res = find(this._data, k);
-        return res && res.value;
-      };
-      PseudoMap.prototype.set = function(k, v) {
-        set(this._data, k, v);
-      };
-      PseudoMap.prototype.delete = function(k) {
-        var res = find(this._data, k);
-        if (res) {
-          delete this._data[res._index];
-          this._data.size--;
-        }
-      };
-      PseudoMap.prototype.clear = function() {
-        var data = /* @__PURE__ */ Object.create(null);
-        data.size = 0;
-        Object.defineProperty(this, "_data", {
-          value: data,
-          enumerable: false,
-          configurable: true,
-          writable: false
-        });
-      };
-      Object.defineProperty(PseudoMap.prototype, "size", {
-        get: function() {
-          return this._data.size;
-        },
-        set: function(n) {
-        },
-        enumerable: true,
-        configurable: true
-      });
-      PseudoMap.prototype.values = PseudoMap.prototype.keys = PseudoMap.prototype.entries = function() {
-        throw new Error("iterators are not implemented in this version");
-      };
-      function same(a, b) {
-        return a === b || a !== a && b !== b;
-      }
-      function Entry(k, v, i) {
-        this.key = k;
-        this.value = v;
-        this._index = i;
-      }
-      function find(data, k) {
-        for (var i = 0, s = "_" + k, key = s; hasOwnProperty.call(data, key); key = s + i++) {
-          if (same(data[key].key, k))
-            return data[key];
-        }
-      }
-      function set(data, k, v) {
-        for (var i = 0, s = "_" + k, key = s; hasOwnProperty.call(data, key); key = s + i++) {
-          if (same(data[key].key, k)) {
-            data[key].value = v;
-            return;
-          }
-        }
-        data.size++;
-        data[key] = new Entry(k, v, key);
-      }
-    }
-  });
-
-  // node_modules/pseudomap/map.js
-  var require_map = __commonJS({
-    "node_modules/pseudomap/map.js"(exports2, module2) {
-      init_define_process_env();
-      init_buffer_global();
-      if (define_process_env_default.npm_package_name === "pseudomap" && define_process_env_default.npm_lifecycle_script === "test")
-        define_process_env_default.TEST_PSEUDOMAP = "true";
-      if (typeof Map === "function" && !define_process_env_default.TEST_PSEUDOMAP) {
-        module2.exports = Map;
-      } else {
-        module2.exports = require_pseudomap();
-      }
-    }
-  });
-
-  // js/shims/util.js
-  var util_exports = {};
-  __export(util_exports, {
-    default: () => util_default,
-    inspect: () => inspect
-  });
-  var inspect, util_default;
-  var init_util = __esm({
-    "js/shims/util.js"() {
-      init_define_process_env();
-      init_buffer_global();
-      inspect = { custom: Symbol("util.inspect.custom") };
-      util_default = { inspect };
-    }
-  });
-
-  // node_modules/yallist/yallist.js
-  var require_yallist = __commonJS({
-    "node_modules/yallist/yallist.js"(exports2, module2) {
-      init_define_process_env();
-      init_buffer_global();
-      module2.exports = Yallist;
-      Yallist.Node = Node;
-      Yallist.create = Yallist;
-      function Yallist(list) {
-        var self2 = this;
-        if (!(self2 instanceof Yallist)) {
-          self2 = new Yallist();
-        }
-        self2.tail = null;
-        self2.head = null;
-        self2.length = 0;
-        if (list && typeof list.forEach === "function") {
-          list.forEach(function(item) {
-            self2.push(item);
-          });
-        } else if (arguments.length > 0) {
-          for (var i = 0, l = arguments.length; i < l; i++) {
-            self2.push(arguments[i]);
-          }
-        }
-        return self2;
-      }
-      Yallist.prototype.removeNode = function(node) {
-        if (node.list !== this) {
-          throw new Error("removing node which does not belong to this list");
-        }
-        var next = node.next;
-        var prev = node.prev;
-        if (next) {
-          next.prev = prev;
-        }
-        if (prev) {
-          prev.next = next;
-        }
-        if (node === this.head) {
-          this.head = next;
-        }
-        if (node === this.tail) {
-          this.tail = prev;
-        }
-        node.list.length--;
-        node.next = null;
-        node.prev = null;
-        node.list = null;
-      };
-      Yallist.prototype.unshiftNode = function(node) {
-        if (node === this.head) {
-          return;
-        }
-        if (node.list) {
-          node.list.removeNode(node);
-        }
-        var head2 = this.head;
-        node.list = this;
-        node.next = head2;
-        if (head2) {
-          head2.prev = node;
-        }
-        this.head = node;
-        if (!this.tail) {
-          this.tail = node;
-        }
-        this.length++;
-      };
-      Yallist.prototype.pushNode = function(node) {
-        if (node === this.tail) {
-          return;
-        }
-        if (node.list) {
-          node.list.removeNode(node);
-        }
-        var tail = this.tail;
-        node.list = this;
-        node.prev = tail;
-        if (tail) {
-          tail.next = node;
-        }
-        this.tail = node;
-        if (!this.head) {
-          this.head = node;
-        }
-        this.length++;
-      };
-      Yallist.prototype.push = function() {
-        for (var i = 0, l = arguments.length; i < l; i++) {
-          push2(this, arguments[i]);
-        }
-        return this.length;
-      };
-      Yallist.prototype.unshift = function() {
-        for (var i = 0, l = arguments.length; i < l; i++) {
-          unshift(this, arguments[i]);
-        }
-        return this.length;
-      };
-      Yallist.prototype.pop = function() {
-        if (!this.tail) {
-          return void 0;
-        }
-        var res = this.tail.value;
-        this.tail = this.tail.prev;
-        if (this.tail) {
-          this.tail.next = null;
-        } else {
-          this.head = null;
-        }
-        this.length--;
-        return res;
-      };
-      Yallist.prototype.shift = function() {
-        if (!this.head) {
-          return void 0;
-        }
-        var res = this.head.value;
-        this.head = this.head.next;
-        if (this.head) {
-          this.head.prev = null;
-        } else {
-          this.tail = null;
-        }
-        this.length--;
-        return res;
-      };
-      Yallist.prototype.forEach = function(fn2, thisp) {
-        thisp = thisp || this;
-        for (var walker = this.head, i = 0; walker !== null; i++) {
-          fn2.call(thisp, walker.value, i, this);
-          walker = walker.next;
-        }
-      };
-      Yallist.prototype.forEachReverse = function(fn2, thisp) {
-        thisp = thisp || this;
-        for (var walker = this.tail, i = this.length - 1; walker !== null; i--) {
-          fn2.call(thisp, walker.value, i, this);
-          walker = walker.prev;
-        }
-      };
-      Yallist.prototype.get = function(n) {
-        for (var i = 0, walker = this.head; walker !== null && i < n; i++) {
-          walker = walker.next;
-        }
-        if (i === n && walker !== null) {
-          return walker.value;
-        }
-      };
-      Yallist.prototype.getReverse = function(n) {
-        for (var i = 0, walker = this.tail; walker !== null && i < n; i++) {
-          walker = walker.prev;
-        }
-        if (i === n && walker !== null) {
-          return walker.value;
-        }
-      };
-      Yallist.prototype.map = function(fn2, thisp) {
-        thisp = thisp || this;
-        var res = new Yallist();
-        for (var walker = this.head; walker !== null; ) {
-          res.push(fn2.call(thisp, walker.value, this));
-          walker = walker.next;
-        }
-        return res;
-      };
-      Yallist.prototype.mapReverse = function(fn2, thisp) {
-        thisp = thisp || this;
-        var res = new Yallist();
-        for (var walker = this.tail; walker !== null; ) {
-          res.push(fn2.call(thisp, walker.value, this));
-          walker = walker.prev;
-        }
-        return res;
-      };
-      Yallist.prototype.reduce = function(fn2, initial) {
-        var acc;
-        var walker = this.head;
-        if (arguments.length > 1) {
-          acc = initial;
-        } else if (this.head) {
-          walker = this.head.next;
-          acc = this.head.value;
-        } else {
-          throw new TypeError("Reduce of empty list with no initial value");
-        }
-        for (var i = 0; walker !== null; i++) {
-          acc = fn2(acc, walker.value, i);
-          walker = walker.next;
-        }
-        return acc;
-      };
-      Yallist.prototype.reduceReverse = function(fn2, initial) {
-        var acc;
-        var walker = this.tail;
-        if (arguments.length > 1) {
-          acc = initial;
-        } else if (this.tail) {
-          walker = this.tail.prev;
-          acc = this.tail.value;
-        } else {
-          throw new TypeError("Reduce of empty list with no initial value");
-        }
-        for (var i = this.length - 1; walker !== null; i--) {
-          acc = fn2(acc, walker.value, i);
-          walker = walker.prev;
-        }
-        return acc;
-      };
-      Yallist.prototype.toArray = function() {
-        var arr = new Array(this.length);
-        for (var i = 0, walker = this.head; walker !== null; i++) {
-          arr[i] = walker.value;
-          walker = walker.next;
-        }
-        return arr;
-      };
-      Yallist.prototype.toArrayReverse = function() {
-        var arr = new Array(this.length);
-        for (var i = 0, walker = this.tail; walker !== null; i++) {
-          arr[i] = walker.value;
-          walker = walker.prev;
-        }
-        return arr;
-      };
-      Yallist.prototype.slice = function(from, to) {
-        to = to || this.length;
-        if (to < 0) {
-          to += this.length;
-        }
-        from = from || 0;
-        if (from < 0) {
-          from += this.length;
-        }
-        var ret = new Yallist();
-        if (to < from || to < 0) {
-          return ret;
-        }
-        if (from < 0) {
-          from = 0;
-        }
-        if (to > this.length) {
-          to = this.length;
-        }
-        for (var i = 0, walker = this.head; walker !== null && i < from; i++) {
-          walker = walker.next;
-        }
-        for (; walker !== null && i < to; i++, walker = walker.next) {
-          ret.push(walker.value);
-        }
-        return ret;
-      };
-      Yallist.prototype.sliceReverse = function(from, to) {
-        to = to || this.length;
-        if (to < 0) {
-          to += this.length;
-        }
-        from = from || 0;
-        if (from < 0) {
-          from += this.length;
-        }
-        var ret = new Yallist();
-        if (to < from || to < 0) {
-          return ret;
-        }
-        if (from < 0) {
-          from = 0;
-        }
-        if (to > this.length) {
-          to = this.length;
-        }
-        for (var i = this.length, walker = this.tail; walker !== null && i > to; i--) {
-          walker = walker.prev;
-        }
-        for (; walker !== null && i > from; i--, walker = walker.prev) {
-          ret.push(walker.value);
-        }
-        return ret;
-      };
-      Yallist.prototype.reverse = function() {
-        var head2 = this.head;
-        var tail = this.tail;
-        for (var walker = head2; walker !== null; walker = walker.prev) {
-          var p = walker.prev;
-          walker.prev = walker.next;
-          walker.next = p;
-        }
-        this.head = tail;
-        this.tail = head2;
-        return this;
-      };
-      function push2(self2, item) {
-        self2.tail = new Node(item, self2.tail, null, self2);
-        if (!self2.head) {
-          self2.head = self2.tail;
-        }
-        self2.length++;
-      }
-      function unshift(self2, item) {
-        self2.head = new Node(item, null, self2.head, self2);
-        if (!self2.tail) {
-          self2.tail = self2.head;
-        }
-        self2.length++;
-      }
-      function Node(value, prev, next, list) {
-        if (!(this instanceof Node)) {
-          return new Node(value, prev, next, list);
-        }
-        this.list = list;
-        this.value = value;
-        if (prev) {
-          prev.next = this;
-          this.prev = prev;
-        } else {
-          this.prev = null;
-        }
-        if (next) {
-          next.prev = this;
-          this.next = next;
-        } else {
-          this.next = null;
-        }
-      }
-    }
-  });
-
-  // node_modules/lru-cache/index.js
-  var require_lru_cache = __commonJS({
-    "node_modules/lru-cache/index.js"(exports2, module2) {
-      "use strict";
-      init_define_process_env();
-      init_buffer_global();
-      module2.exports = LRUCache;
-      var Map2 = require_map();
-      var util = (init_util(), __toCommonJS(util_exports));
-      var Yallist = require_yallist();
-      var hasSymbol = typeof Symbol === "function" && define_process_env_default._nodeLRUCacheForceNoSymbol !== "1";
-      var makeSymbol;
-      if (hasSymbol) {
-        makeSymbol = function(key) {
-          return Symbol(key);
-        };
-      } else {
-        makeSymbol = function(key) {
-          return "_" + key;
-        };
-      }
-      var MAX = makeSymbol("max");
-      var LENGTH = makeSymbol("length");
-      var LENGTH_CALCULATOR = makeSymbol("lengthCalculator");
-      var ALLOW_STALE = makeSymbol("allowStale");
-      var MAX_AGE = makeSymbol("maxAge");
-      var DISPOSE = makeSymbol("dispose");
-      var NO_DISPOSE_ON_SET = makeSymbol("noDisposeOnSet");
-      var LRU_LIST = makeSymbol("lruList");
-      var CACHE = makeSymbol("cache");
-      function naiveLength() {
-        return 1;
-      }
-      function LRUCache(options) {
-        if (!(this instanceof LRUCache)) {
-          return new LRUCache(options);
-        }
-        if (typeof options === "number") {
-          options = { max: options };
-        }
-        if (!options) {
-          options = {};
-        }
-        var max = this[MAX] = options.max;
-        if (!max || !(typeof max === "number") || max <= 0) {
-          this[MAX] = Infinity;
-        }
-        var lc = options.length || naiveLength;
-        if (typeof lc !== "function") {
-          lc = naiveLength;
-        }
-        this[LENGTH_CALCULATOR] = lc;
-        this[ALLOW_STALE] = options.stale || false;
-        this[MAX_AGE] = options.maxAge || 0;
-        this[DISPOSE] = options.dispose;
-        this[NO_DISPOSE_ON_SET] = options.noDisposeOnSet || false;
-        this.reset();
-      }
-      Object.defineProperty(LRUCache.prototype, "max", {
-        set: function(mL) {
-          if (!mL || !(typeof mL === "number") || mL <= 0) {
-            mL = Infinity;
-          }
-          this[MAX] = mL;
-          trim(this);
-        },
-        get: function() {
-          return this[MAX];
-        },
-        enumerable: true
-      });
-      Object.defineProperty(LRUCache.prototype, "allowStale", {
-        set: function(allowStale) {
-          this[ALLOW_STALE] = !!allowStale;
-        },
-        get: function() {
-          return this[ALLOW_STALE];
-        },
-        enumerable: true
-      });
-      Object.defineProperty(LRUCache.prototype, "maxAge", {
-        set: function(mA) {
-          if (!mA || !(typeof mA === "number") || mA < 0) {
-            mA = 0;
-          }
-          this[MAX_AGE] = mA;
-          trim(this);
-        },
-        get: function() {
-          return this[MAX_AGE];
-        },
-        enumerable: true
-      });
-      Object.defineProperty(LRUCache.prototype, "lengthCalculator", {
-        set: function(lC) {
-          if (typeof lC !== "function") {
-            lC = naiveLength;
-          }
-          if (lC !== this[LENGTH_CALCULATOR]) {
-            this[LENGTH_CALCULATOR] = lC;
-            this[LENGTH] = 0;
-            this[LRU_LIST].forEach(function(hit) {
-              hit.length = this[LENGTH_CALCULATOR](hit.value, hit.key);
-              this[LENGTH] += hit.length;
-            }, this);
-          }
-          trim(this);
-        },
-        get: function() {
-          return this[LENGTH_CALCULATOR];
-        },
-        enumerable: true
-      });
-      Object.defineProperty(LRUCache.prototype, "length", {
-        get: function() {
-          return this[LENGTH];
-        },
-        enumerable: true
-      });
-      Object.defineProperty(LRUCache.prototype, "itemCount", {
-        get: function() {
-          return this[LRU_LIST].length;
-        },
-        enumerable: true
-      });
-      LRUCache.prototype.rforEach = function(fn2, thisp) {
-        thisp = thisp || this;
-        for (var walker = this[LRU_LIST].tail; walker !== null; ) {
-          var prev = walker.prev;
-          forEachStep(this, fn2, walker, thisp);
-          walker = prev;
-        }
-      };
-      function forEachStep(self2, fn2, node, thisp) {
-        var hit = node.value;
-        if (isStale(self2, hit)) {
-          del(self2, node);
-          if (!self2[ALLOW_STALE]) {
-            hit = void 0;
-          }
-        }
-        if (hit) {
-          fn2.call(thisp, hit.value, hit.key, self2);
-        }
-      }
-      LRUCache.prototype.forEach = function(fn2, thisp) {
-        thisp = thisp || this;
-        for (var walker = this[LRU_LIST].head; walker !== null; ) {
-          var next = walker.next;
-          forEachStep(this, fn2, walker, thisp);
-          walker = next;
-        }
-      };
-      LRUCache.prototype.keys = function() {
-        return this[LRU_LIST].toArray().map(function(k) {
-          return k.key;
-        }, this);
-      };
-      LRUCache.prototype.values = function() {
-        return this[LRU_LIST].toArray().map(function(k) {
-          return k.value;
-        }, this);
-      };
-      LRUCache.prototype.reset = function() {
-        if (this[DISPOSE] && this[LRU_LIST] && this[LRU_LIST].length) {
-          this[LRU_LIST].forEach(function(hit) {
-            this[DISPOSE](hit.key, hit.value);
-          }, this);
-        }
-        this[CACHE] = new Map2();
-        this[LRU_LIST] = new Yallist();
-        this[LENGTH] = 0;
-      };
-      LRUCache.prototype.dump = function() {
-        return this[LRU_LIST].map(function(hit) {
-          if (!isStale(this, hit)) {
-            return {
-              k: hit.key,
-              v: hit.value,
-              e: hit.now + (hit.maxAge || 0)
-            };
-          }
-        }, this).toArray().filter(function(h) {
-          return h;
-        });
-      };
-      LRUCache.prototype.dumpLru = function() {
-        return this[LRU_LIST];
-      };
-      LRUCache.prototype.inspect = function(n, opts) {
-        var str = "LRUCache {";
-        var extras = false;
-        var as = this[ALLOW_STALE];
-        if (as) {
-          str += "\n  allowStale: true";
-          extras = true;
-        }
-        var max = this[MAX];
-        if (max && max !== Infinity) {
-          if (extras) {
-            str += ",";
-          }
-          str += "\n  max: " + util.inspect(max, opts);
-          extras = true;
-        }
-        var maxAge = this[MAX_AGE];
-        if (maxAge) {
-          if (extras) {
-            str += ",";
-          }
-          str += "\n  maxAge: " + util.inspect(maxAge, opts);
-          extras = true;
-        }
-        var lc = this[LENGTH_CALCULATOR];
-        if (lc && lc !== naiveLength) {
-          if (extras) {
-            str += ",";
-          }
-          str += "\n  length: " + util.inspect(this[LENGTH], opts);
-          extras = true;
-        }
-        var didFirst = false;
-        this[LRU_LIST].forEach(function(item) {
-          if (didFirst) {
-            str += ",\n  ";
-          } else {
-            if (extras) {
-              str += ",\n";
-            }
-            didFirst = true;
-            str += "\n  ";
-          }
-          var key = util.inspect(item.key).split("\n").join("\n  ");
-          var val = { value: item.value };
-          if (item.maxAge !== maxAge) {
-            val.maxAge = item.maxAge;
-          }
-          if (lc !== naiveLength) {
-            val.length = item.length;
-          }
-          if (isStale(this, item)) {
-            val.stale = true;
-          }
-          val = util.inspect(val, opts).split("\n").join("\n  ");
-          str += key + " => " + val;
-        });
-        if (didFirst || extras) {
-          str += "\n";
-        }
-        str += "}";
-        return str;
-      };
-      LRUCache.prototype.set = function(key, value, maxAge) {
-        maxAge = maxAge || this[MAX_AGE];
-        var now = maxAge ? Date.now() : 0;
-        var len = this[LENGTH_CALCULATOR](value, key);
-        if (this[CACHE].has(key)) {
-          if (len > this[MAX]) {
-            del(this, this[CACHE].get(key));
-            return false;
-          }
-          var node = this[CACHE].get(key);
-          var item = node.value;
-          if (this[DISPOSE]) {
-            if (!this[NO_DISPOSE_ON_SET]) {
-              this[DISPOSE](key, item.value);
-            }
-          }
-          item.now = now;
-          item.maxAge = maxAge;
-          item.value = value;
-          this[LENGTH] += len - item.length;
-          item.length = len;
-          this.get(key);
-          trim(this);
-          return true;
-        }
-        var hit = new Entry(key, value, len, now, maxAge);
-        if (hit.length > this[MAX]) {
-          if (this[DISPOSE]) {
-            this[DISPOSE](key, value);
-          }
-          return false;
-        }
-        this[LENGTH] += hit.length;
-        this[LRU_LIST].unshift(hit);
-        this[CACHE].set(key, this[LRU_LIST].head);
-        trim(this);
-        return true;
-      };
-      LRUCache.prototype.has = function(key) {
-        if (!this[CACHE].has(key)) return false;
-        var hit = this[CACHE].get(key).value;
-        if (isStale(this, hit)) {
-          return false;
-        }
-        return true;
-      };
-      LRUCache.prototype.get = function(key) {
-        return get(this, key, true);
-      };
-      LRUCache.prototype.peek = function(key) {
-        return get(this, key, false);
-      };
-      LRUCache.prototype.pop = function() {
-        var node = this[LRU_LIST].tail;
-        if (!node) return null;
-        del(this, node);
-        return node.value;
-      };
-      LRUCache.prototype.del = function(key) {
-        del(this, this[CACHE].get(key));
-      };
-      LRUCache.prototype.load = function(arr) {
-        this.reset();
-        var now = Date.now();
-        for (var l = arr.length - 1; l >= 0; l--) {
-          var hit = arr[l];
-          var expiresAt = hit.e || 0;
-          if (expiresAt === 0) {
-            this.set(hit.k, hit.v);
-          } else {
-            var maxAge = expiresAt - now;
-            if (maxAge > 0) {
-              this.set(hit.k, hit.v, maxAge);
-            }
-          }
-        }
-      };
-      LRUCache.prototype.prune = function() {
-        var self2 = this;
-        this[CACHE].forEach(function(value, key) {
-          get(self2, key, false);
-        });
-      };
-      function get(self2, key, doUse) {
-        var node = self2[CACHE].get(key);
-        if (node) {
-          var hit = node.value;
-          if (isStale(self2, hit)) {
-            del(self2, node);
-            if (!self2[ALLOW_STALE]) hit = void 0;
-          } else {
-            if (doUse) {
-              self2[LRU_LIST].unshiftNode(node);
-            }
-          }
-          if (hit) hit = hit.value;
-        }
-        return hit;
-      }
-      function isStale(self2, hit) {
-        if (!hit || !hit.maxAge && !self2[MAX_AGE]) {
-          return false;
-        }
-        var stale = false;
-        var diff = Date.now() - hit.now;
-        if (hit.maxAge) {
-          stale = diff > hit.maxAge;
-        } else {
-          stale = self2[MAX_AGE] && diff > self2[MAX_AGE];
-        }
-        return stale;
-      }
-      function trim(self2) {
-        if (self2[LENGTH] > self2[MAX]) {
-          for (var walker = self2[LRU_LIST].tail; self2[LENGTH] > self2[MAX] && walker !== null; ) {
-            var prev = walker.prev;
-            del(self2, walker);
-            walker = prev;
-          }
-        }
-      }
-      function del(self2, node) {
-        if (node) {
-          var hit = node.value;
-          if (self2[DISPOSE]) {
-            self2[DISPOSE](hit.key, hit.value);
-          }
-          self2[LENGTH] -= hit.length;
-          self2[CACHE].delete(hit.key);
-          self2[LRU_LIST].removeNode(node);
-        }
-      }
-      function Entry(key, value, length, now, maxAge) {
-        this.key = key;
-        this.value = value;
-        this.length = length;
-        this.now = now;
-        this.maxAge = maxAge || 0;
-      }
     }
   });
 
@@ -3721,71 +2887,113 @@
     }
   }
 
-  // node_modules/date-fns/esm/index.js
+  // node_modules/date-fns/constructFrom.js
   init_define_process_env();
   init_buffer_global();
 
-  // node_modules/date-fns/esm/toDate/index.js
+  // node_modules/date-fns/constants.js
   init_define_process_env();
   init_buffer_global();
+  var daysInYear = 365.2425;
+  var maxTime = Math.pow(10, 8) * 24 * 60 * 60 * 1e3;
+  var minTime = -maxTime;
+  var millisecondsInMinute = 6e4;
+  var minutesInYear = 525600;
+  var minutesInMonth = 43200;
+  var minutesInDay = 1440;
+  var secondsInHour = 3600;
+  var secondsInDay = secondsInHour * 24;
+  var secondsInWeek = secondsInDay * 7;
+  var secondsInYear = secondsInDay * daysInYear;
+  var secondsInMonth = secondsInYear / 12;
+  var secondsInQuarter = secondsInMonth * 3;
+  var constructFromSymbol = /* @__PURE__ */ Symbol.for("constructDateFrom");
 
-  // node_modules/date-fns/esm/_lib/requiredArgs/index.js
-  init_define_process_env();
-  init_buffer_global();
-  function requiredArgs(required, args) {
-    if (args.length < required) {
-      throw new TypeError(required + " argument" + (required > 1 ? "s" : "") + " required, but only " + args.length + " present");
-    }
+  // node_modules/date-fns/constructFrom.js
+  function constructFrom(date, value) {
+    if (typeof date === "function") return date(value);
+    if (date && typeof date === "object" && constructFromSymbol in date)
+      return date[constructFromSymbol](value);
+    if (date instanceof Date) return new date.constructor(value);
+    return new Date(value);
   }
 
-  // node_modules/date-fns/esm/toDate/index.js
-  function toDate(argument) {
-    requiredArgs(1, arguments);
-    var argStr = Object.prototype.toString.call(argument);
-    if (argument instanceof Date || typeof argument === "object" && argStr === "[object Date]") {
-      return new Date(argument.getTime());
-    } else if (typeof argument === "number" || argStr === "[object Number]") {
-      return new Date(argument);
-    } else {
-      if ((typeof argument === "string" || argStr === "[object String]") && typeof console !== "undefined") {
-        console.warn("Starting with v2.0.0-beta.1 date-fns doesn't accept strings as date arguments. Please use `parseISO` to parse strings. See: https://git.io/fjule");
-        console.warn(new Error().stack);
-      }
-      return /* @__PURE__ */ new Date(NaN);
-    }
+  // node_modules/date-fns/toDate.js
+  init_define_process_env();
+  init_buffer_global();
+  function toDate(argument, context) {
+    return constructFrom(context || argument, argument);
   }
 
-  // node_modules/date-fns/esm/_lib/getTimezoneOffsetInMilliseconds/index.js
+  // node_modules/date-fns/_lib/defaultOptions.js
+  init_define_process_env();
+  init_buffer_global();
+  var defaultOptions = {};
+  function getDefaultOptions() {
+    return defaultOptions;
+  }
+
+  // node_modules/date-fns/_lib/getTimezoneOffsetInMilliseconds.js
   init_define_process_env();
   init_buffer_global();
   function getTimezoneOffsetInMilliseconds(date) {
-    var utcDate = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate(), date.getHours(), date.getMinutes(), date.getSeconds(), date.getMilliseconds()));
-    utcDate.setUTCFullYear(date.getFullYear());
-    return date.getTime() - utcDate.getTime();
+    const _date = toDate(date);
+    const utcDate = new Date(
+      Date.UTC(
+        _date.getFullYear(),
+        _date.getMonth(),
+        _date.getDate(),
+        _date.getHours(),
+        _date.getMinutes(),
+        _date.getSeconds(),
+        _date.getMilliseconds()
+      )
+    );
+    utcDate.setUTCFullYear(_date.getFullYear());
+    return +date - +utcDate;
   }
 
-  // node_modules/date-fns/esm/compareAsc/index.js
+  // node_modules/date-fns/_lib/normalizeDates.js
   init_define_process_env();
   init_buffer_global();
-  function compareAsc(dirtyDateLeft, dirtyDateRight) {
-    requiredArgs(2, arguments);
-    var dateLeft = toDate(dirtyDateLeft);
-    var dateRight = toDate(dirtyDateRight);
-    var diff = dateLeft.getTime() - dateRight.getTime();
-    if (diff < 0) {
-      return -1;
-    } else if (diff > 0) {
-      return 1;
-    } else {
-      return diff;
-    }
+  function normalizeDates(context, ...dates) {
+    const normalize2 = constructFrom.bind(
+      null,
+      context || dates.find((date) => typeof date === "object")
+    );
+    return dates.map(normalize2);
   }
 
-  // node_modules/date-fns/esm/locale/en-US/index.js
+  // node_modules/date-fns/compareAsc.js
+  init_define_process_env();
+  init_buffer_global();
+  function compareAsc(dateLeft, dateRight) {
+    const diff = +toDate(dateLeft) - +toDate(dateRight);
+    if (diff < 0) return -1;
+    else if (diff > 0) return 1;
+    return diff;
+  }
+
+  // node_modules/date-fns/_lib/getRoundingMethod.js
+  init_define_process_env();
+  init_buffer_global();
+  function getRoundingMethod(method) {
+    return (number) => {
+      const round = method ? Math[method] : Math.trunc;
+      const result = round(number);
+      return result === 0 ? 0 : result;
+    };
+  }
+
+  // node_modules/date-fns/_lib/defaultLocale.js
   init_define_process_env();
   init_buffer_global();
 
-  // node_modules/date-fns/esm/locale/en-US/_lib/formatDistance/index.js
+  // node_modules/date-fns/locale/en-US.js
+  init_define_process_env();
+  init_buffer_global();
+
+  // node_modules/date-fns/locale/en-US/_lib/formatDistance.js
   init_define_process_env();
   init_buffer_global();
   var formatDistanceLocale = {
@@ -3851,9 +3059,9 @@
       other: "almost {{count}} years"
     }
   };
-  var formatDistance = function(token, count, options) {
-    var result;
-    var tokenValue = formatDistanceLocale[token];
+  var formatDistance = (token, count, options) => {
+    let result;
+    const tokenValue = formatDistanceLocale[token];
     if (typeof tokenValue === "string") {
       result = tokenValue;
     } else if (count === 1) {
@@ -3861,7 +3069,7 @@
     } else {
       result = tokenValue.other.replace("{{count}}", count.toString());
     }
-    if (options !== null && options !== void 0 && options.addSuffix) {
+    if (options?.addSuffix) {
       if (options.comparison && options.comparison > 0) {
         return "in " + result;
       } else {
@@ -3870,25 +3078,23 @@
     }
     return result;
   };
-  var formatDistance_default = formatDistance;
 
-  // node_modules/date-fns/esm/locale/en-US/_lib/formatLong/index.js
+  // node_modules/date-fns/locale/en-US/_lib/formatLong.js
   init_define_process_env();
   init_buffer_global();
 
-  // node_modules/date-fns/esm/locale/_lib/buildFormatLongFn/index.js
+  // node_modules/date-fns/locale/_lib/buildFormatLongFn.js
   init_define_process_env();
   init_buffer_global();
   function buildFormatLongFn(args) {
-    return function() {
-      var options = arguments.length > 0 && arguments[0] !== void 0 ? arguments[0] : {};
-      var width = options.width ? String(options.width) : args.defaultWidth;
-      var format = args.formats[width] || args.formats[args.defaultWidth];
+    return (options = {}) => {
+      const width = options.width ? String(options.width) : args.defaultWidth;
+      const format = args.formats[width] || args.formats[args.defaultWidth];
       return format;
     };
   }
 
-  // node_modules/date-fns/esm/locale/en-US/_lib/formatLong/index.js
+  // node_modules/date-fns/locale/en-US/_lib/formatLong.js
   var dateFormats = {
     full: "EEEE, MMMM do, y",
     long: "MMMM do, y",
@@ -3921,9 +3127,8 @@
       defaultWidth: "full"
     })
   };
-  var formatLong_default = formatLong;
 
-  // node_modules/date-fns/esm/locale/en-US/_lib/formatRelative/index.js
+  // node_modules/date-fns/locale/en-US/_lib/formatRelative.js
   init_define_process_env();
   init_buffer_global();
   var formatRelativeLocale = {
@@ -3934,38 +3139,34 @@
     nextWeek: "eeee 'at' p",
     other: "P"
   };
-  var formatRelative = function(token, _date, _baseDate, _options) {
-    return formatRelativeLocale[token];
-  };
-  var formatRelative_default = formatRelative;
+  var formatRelative = (token, _date, _baseDate, _options) => formatRelativeLocale[token];
 
-  // node_modules/date-fns/esm/locale/en-US/_lib/localize/index.js
+  // node_modules/date-fns/locale/en-US/_lib/localize.js
   init_define_process_env();
   init_buffer_global();
 
-  // node_modules/date-fns/esm/locale/_lib/buildLocalizeFn/index.js
+  // node_modules/date-fns/locale/_lib/buildLocalizeFn.js
   init_define_process_env();
   init_buffer_global();
   function buildLocalizeFn(args) {
-    return function(dirtyIndex, dirtyOptions) {
-      var options = dirtyOptions || {};
-      var context = options.context ? String(options.context) : "standalone";
-      var valuesArray;
+    return (value, options) => {
+      const context = options?.context ? String(options.context) : "standalone";
+      let valuesArray;
       if (context === "formatting" && args.formattingValues) {
-        var defaultWidth = args.defaultFormattingWidth || args.defaultWidth;
-        var width = options.width ? String(options.width) : defaultWidth;
+        const defaultWidth = args.defaultFormattingWidth || args.defaultWidth;
+        const width = options?.width ? String(options.width) : defaultWidth;
         valuesArray = args.formattingValues[width] || args.formattingValues[defaultWidth];
       } else {
-        var _defaultWidth = args.defaultWidth;
-        var _width = options.width ? String(options.width) : args.defaultWidth;
-        valuesArray = args.values[_width] || args.values[_defaultWidth];
+        const defaultWidth = args.defaultWidth;
+        const width = options?.width ? String(options.width) : args.defaultWidth;
+        valuesArray = args.values[width] || args.values[defaultWidth];
       }
-      var index = args.argumentCallback ? args.argumentCallback(dirtyIndex) : dirtyIndex;
+      const index = args.argumentCallback ? args.argumentCallback(value) : value;
       return valuesArray[index];
     };
   }
 
-  // node_modules/date-fns/esm/locale/en-US/_lib/localize/index.js
+  // node_modules/date-fns/locale/en-US/_lib/localize.js
   var eraValues = {
     narrow: ["B", "A"],
     abbreviated: ["BC", "AD"],
@@ -3978,14 +3179,48 @@
   };
   var monthValues = {
     narrow: ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"],
-    abbreviated: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
-    wide: ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
+    abbreviated: [
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec"
+    ],
+    wide: [
+      "January",
+      "February",
+      "March",
+      "April",
+      "May",
+      "June",
+      "July",
+      "August",
+      "September",
+      "October",
+      "November",
+      "December"
+    ]
   };
   var dayValues = {
     narrow: ["S", "M", "T", "W", "T", "F", "S"],
     short: ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"],
     abbreviated: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
-    wide: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+    wide: [
+      "Sunday",
+      "Monday",
+      "Tuesday",
+      "Wednesday",
+      "Thursday",
+      "Friday",
+      "Saturday"
+    ]
   };
   var dayPeriodValues = {
     narrow: {
@@ -4051,9 +3286,9 @@
       night: "at night"
     }
   };
-  var ordinalNumber = function(dirtyNumber, _options) {
-    var number = Number(dirtyNumber);
-    var rem100 = number % 100;
+  var ordinalNumber = (dirtyNumber, _options) => {
+    const number = Number(dirtyNumber);
+    const rem100 = number % 100;
     if (rem100 > 20 || rem100 < 10) {
       switch (rem100 % 10) {
         case 1:
@@ -4075,9 +3310,7 @@
     quarter: buildLocalizeFn({
       values: quarterValues,
       defaultWidth: "wide",
-      argumentCallback: function(quarter) {
-        return quarter - 1;
-      }
+      argumentCallback: (quarter) => quarter - 1
     }),
     month: buildLocalizeFn({
       values: monthValues,
@@ -4094,51 +3327,48 @@
       defaultFormattingWidth: "wide"
     })
   };
-  var localize_default = localize;
 
-  // node_modules/date-fns/esm/locale/en-US/_lib/match/index.js
+  // node_modules/date-fns/locale/en-US/_lib/match.js
   init_define_process_env();
   init_buffer_global();
 
-  // node_modules/date-fns/esm/locale/_lib/buildMatchFn/index.js
+  // node_modules/date-fns/locale/_lib/buildMatchFn.js
   init_define_process_env();
   init_buffer_global();
   function buildMatchFn(args) {
-    return function(string) {
-      var options = arguments.length > 1 && arguments[1] !== void 0 ? arguments[1] : {};
-      var width = options.width;
-      var matchPattern = width && args.matchPatterns[width] || args.matchPatterns[args.defaultMatchWidth];
-      var matchResult = string.match(matchPattern);
+    return (string, options = {}) => {
+      const width = options.width;
+      const matchPattern = width && args.matchPatterns[width] || args.matchPatterns[args.defaultMatchWidth];
+      const matchResult = string.match(matchPattern);
       if (!matchResult) {
         return null;
       }
-      var matchedString = matchResult[0];
-      var parsePatterns = width && args.parsePatterns[width] || args.parsePatterns[args.defaultParseWidth];
-      var key = Array.isArray(parsePatterns) ? findIndex(parsePatterns, function(pattern) {
-        return pattern.test(matchedString);
-      }) : findKey(parsePatterns, function(pattern) {
-        return pattern.test(matchedString);
-      });
-      var value;
+      const matchedString = matchResult[0];
+      const parsePatterns = width && args.parsePatterns[width] || args.parsePatterns[args.defaultParseWidth];
+      const key = Array.isArray(parsePatterns) ? findIndex(parsePatterns, (pattern) => pattern.test(matchedString)) : (
+        // [TODO] -- I challenge you to fix the type
+        findKey(parsePatterns, (pattern) => pattern.test(matchedString))
+      );
+      let value;
       value = args.valueCallback ? args.valueCallback(key) : key;
-      value = options.valueCallback ? options.valueCallback(value) : value;
-      var rest = string.slice(matchedString.length);
-      return {
-        value,
-        rest
-      };
+      value = options.valueCallback ? (
+        // [TODO] -- I challenge you to fix the type
+        options.valueCallback(value)
+      ) : value;
+      const rest = string.slice(matchedString.length);
+      return { value, rest };
     };
   }
   function findKey(object, predicate) {
-    for (var key in object) {
-      if (object.hasOwnProperty(key) && predicate(object[key])) {
+    for (const key in object) {
+      if (Object.prototype.hasOwnProperty.call(object, key) && predicate(object[key])) {
         return key;
       }
     }
     return void 0;
   }
   function findIndex(array, predicate) {
-    for (var key = 0; key < array.length; key++) {
+    for (let key = 0; key < array.length; key++) {
       if (predicate(array[key])) {
         return key;
       }
@@ -4146,28 +3376,24 @@
     return void 0;
   }
 
-  // node_modules/date-fns/esm/locale/_lib/buildMatchPatternFn/index.js
+  // node_modules/date-fns/locale/_lib/buildMatchPatternFn.js
   init_define_process_env();
   init_buffer_global();
   function buildMatchPatternFn(args) {
-    return function(string) {
-      var options = arguments.length > 1 && arguments[1] !== void 0 ? arguments[1] : {};
-      var matchResult = string.match(args.matchPattern);
+    return (string, options = {}) => {
+      const matchResult = string.match(args.matchPattern);
       if (!matchResult) return null;
-      var matchedString = matchResult[0];
-      var parseResult = string.match(args.parsePattern);
+      const matchedString = matchResult[0];
+      const parseResult = string.match(args.parsePattern);
       if (!parseResult) return null;
-      var value = args.valueCallback ? args.valueCallback(parseResult[0]) : parseResult[0];
+      let value = args.valueCallback ? args.valueCallback(parseResult[0]) : parseResult[0];
       value = options.valueCallback ? options.valueCallback(value) : value;
-      var rest = string.slice(matchedString.length);
-      return {
-        value,
-        rest
-      };
+      const rest = string.slice(matchedString.length);
+      return { value, rest };
     };
   }
 
-  // node_modules/date-fns/esm/locale/en-US/_lib/match/index.js
+  // node_modules/date-fns/locale/en-US/_lib/match.js
   var matchOrdinalNumberPattern = /^(\d+)(th|st|nd|rd)?/i;
   var parseOrdinalNumberPattern = /\d+/i;
   var matchEraPatterns = {
@@ -4192,8 +3418,34 @@
     wide: /^(january|february|march|april|may|june|july|august|september|october|november|december)/i
   };
   var parseMonthPatterns = {
-    narrow: [/^j/i, /^f/i, /^m/i, /^a/i, /^m/i, /^j/i, /^j/i, /^a/i, /^s/i, /^o/i, /^n/i, /^d/i],
-    any: [/^ja/i, /^f/i, /^mar/i, /^ap/i, /^may/i, /^jun/i, /^jul/i, /^au/i, /^s/i, /^o/i, /^n/i, /^d/i]
+    narrow: [
+      /^j/i,
+      /^f/i,
+      /^m/i,
+      /^a/i,
+      /^m/i,
+      /^j/i,
+      /^j/i,
+      /^a/i,
+      /^s/i,
+      /^o/i,
+      /^n/i,
+      /^d/i
+    ],
+    any: [
+      /^ja/i,
+      /^f/i,
+      /^mar/i,
+      /^ap/i,
+      /^may/i,
+      /^jun/i,
+      /^jul/i,
+      /^au/i,
+      /^s/i,
+      /^o/i,
+      /^n/i,
+      /^d/i
+    ]
   };
   var matchDayPatterns = {
     narrow: /^[smtwf]/i,
@@ -4225,9 +3477,7 @@
     ordinalNumber: buildMatchPatternFn({
       matchPattern: matchOrdinalNumberPattern,
       parsePattern: parseOrdinalNumberPattern,
-      valueCallback: function(value) {
-        return parseInt(value, 10);
-      }
+      valueCallback: (value) => parseInt(value, 10)
     }),
     era: buildMatchFn({
       matchPatterns: matchEraPatterns,
@@ -4240,9 +3490,7 @@
       defaultMatchWidth: "wide",
       parsePatterns: parseQuarterPatterns,
       defaultParseWidth: "any",
-      valueCallback: function(index) {
-        return index + 1;
-      }
+      valueCallback: (index) => index + 1
     }),
     month: buildMatchFn({
       matchPatterns: matchMonthPatterns,
@@ -4263,131 +3511,82 @@
       defaultParseWidth: "any"
     })
   };
-  var match_default = match;
 
-  // node_modules/date-fns/esm/locale/en-US/index.js
-  var locale = {
+  // node_modules/date-fns/locale/en-US.js
+  var enUS = {
     code: "en-US",
-    formatDistance: formatDistance_default,
-    formatLong: formatLong_default,
-    formatRelative: formatRelative_default,
-    localize: localize_default,
-    match: match_default,
+    formatDistance,
+    formatLong,
+    formatRelative,
+    localize,
+    match,
     options: {
       weekStartsOn: 0,
       firstWeekContainsDate: 1
     }
   };
-  var en_US_default = locale;
 
-  // node_modules/date-fns/esm/_lib/cloneObject/index.js
+  // node_modules/date-fns/formatDistanceStrict.js
   init_define_process_env();
   init_buffer_global();
-
-  // node_modules/date-fns/esm/_lib/assign/index.js
-  init_define_process_env();
-  init_buffer_global();
-  function assign(target, dirtyObject) {
-    if (target == null) {
-      throw new TypeError("assign requires that input parameter not be null or undefined");
-    }
-    dirtyObject = dirtyObject || {};
-    for (var property in dirtyObject) {
-      if (Object.prototype.hasOwnProperty.call(dirtyObject, property)) {
-        target[property] = dirtyObject[property];
-      }
-    }
-    return target;
-  }
-
-  // node_modules/date-fns/esm/_lib/cloneObject/index.js
-  function cloneObject(dirtyObject) {
-    return assign({}, dirtyObject);
-  }
-
-  // node_modules/date-fns/esm/formatDistanceStrict/index.js
-  init_define_process_env();
-  init_buffer_global();
-  var MILLISECONDS_IN_MINUTE = 1e3 * 60;
-  var MINUTES_IN_DAY = 60 * 24;
-  var MINUTES_IN_MONTH = MINUTES_IN_DAY * 30;
-  var MINUTES_IN_YEAR = MINUTES_IN_DAY * 365;
-  function formatDistanceStrict(dirtyDate, dirtyBaseDate) {
-    var options = arguments.length > 2 && arguments[2] !== void 0 ? arguments[2] : {};
-    requiredArgs(2, arguments);
-    var locale2 = options.locale || en_US_default;
-    if (!locale2.formatDistance) {
-      throw new RangeError("locale must contain localize.formatDistance property");
-    }
-    var comparison = compareAsc(dirtyDate, dirtyBaseDate);
+  function formatDistanceStrict(laterDate, earlierDate, options) {
+    const defaultOptions2 = getDefaultOptions();
+    const locale = options?.locale ?? defaultOptions2.locale ?? enUS;
+    const comparison = compareAsc(laterDate, earlierDate);
     if (isNaN(comparison)) {
       throw new RangeError("Invalid time value");
     }
-    var localizeOptions = cloneObject(options);
-    localizeOptions.addSuffix = Boolean(options.addSuffix);
-    localizeOptions.comparison = comparison;
-    var dateLeft;
-    var dateRight;
-    if (comparison > 0) {
-      dateLeft = toDate(dirtyBaseDate);
-      dateRight = toDate(dirtyDate);
-    } else {
-      dateLeft = toDate(dirtyDate);
-      dateRight = toDate(dirtyBaseDate);
-    }
-    var roundingMethod = options.roundingMethod == null ? "round" : String(options.roundingMethod);
-    var roundingMethodFn;
-    if (roundingMethod === "floor") {
-      roundingMethodFn = Math.floor;
-    } else if (roundingMethod === "ceil") {
-      roundingMethodFn = Math.ceil;
-    } else if (roundingMethod === "round") {
-      roundingMethodFn = Math.round;
-    } else {
-      throw new RangeError("roundingMethod must be 'floor', 'ceil' or 'round'");
-    }
-    var milliseconds = dateRight.getTime() - dateLeft.getTime();
-    var minutes = milliseconds / MILLISECONDS_IN_MINUTE;
-    var timezoneOffset = getTimezoneOffsetInMilliseconds(dateRight) - getTimezoneOffsetInMilliseconds(dateLeft);
-    var dstNormalizedMinutes = (milliseconds - timezoneOffset) / MILLISECONDS_IN_MINUTE;
-    var unit;
-    if (options.unit == null) {
+    const localizeOptions = Object.assign({}, options, {
+      addSuffix: options?.addSuffix,
+      comparison
+    });
+    const [laterDate_, earlierDate_] = normalizeDates(
+      options?.in,
+      ...comparison > 0 ? [earlierDate, laterDate] : [laterDate, earlierDate]
+    );
+    const roundingMethod = getRoundingMethod(options?.roundingMethod ?? "round");
+    const milliseconds = earlierDate_.getTime() - laterDate_.getTime();
+    const minutes = milliseconds / millisecondsInMinute;
+    const timezoneOffset = getTimezoneOffsetInMilliseconds(earlierDate_) - getTimezoneOffsetInMilliseconds(laterDate_);
+    const dstNormalizedMinutes = (milliseconds - timezoneOffset) / millisecondsInMinute;
+    const defaultUnit = options?.unit;
+    let unit;
+    if (!defaultUnit) {
       if (minutes < 1) {
         unit = "second";
       } else if (minutes < 60) {
         unit = "minute";
-      } else if (minutes < MINUTES_IN_DAY) {
+      } else if (minutes < minutesInDay) {
         unit = "hour";
-      } else if (dstNormalizedMinutes < MINUTES_IN_MONTH) {
+      } else if (dstNormalizedMinutes < minutesInMonth) {
         unit = "day";
-      } else if (dstNormalizedMinutes < MINUTES_IN_YEAR) {
+      } else if (dstNormalizedMinutes < minutesInYear) {
         unit = "month";
       } else {
         unit = "year";
       }
     } else {
-      unit = String(options.unit);
+      unit = defaultUnit;
     }
     if (unit === "second") {
-      var seconds = roundingMethodFn(milliseconds / 1e3);
-      return locale2.formatDistance("xSeconds", seconds, localizeOptions);
+      const seconds = roundingMethod(milliseconds / 1e3);
+      return locale.formatDistance("xSeconds", seconds, localizeOptions);
     } else if (unit === "minute") {
-      var roundedMinutes = roundingMethodFn(minutes);
-      return locale2.formatDistance("xMinutes", roundedMinutes, localizeOptions);
+      const roundedMinutes = roundingMethod(minutes);
+      return locale.formatDistance("xMinutes", roundedMinutes, localizeOptions);
     } else if (unit === "hour") {
-      var hours = roundingMethodFn(minutes / 60);
-      return locale2.formatDistance("xHours", hours, localizeOptions);
+      const hours = roundingMethod(minutes / 60);
+      return locale.formatDistance("xHours", hours, localizeOptions);
     } else if (unit === "day") {
-      var days = roundingMethodFn(dstNormalizedMinutes / MINUTES_IN_DAY);
-      return locale2.formatDistance("xDays", days, localizeOptions);
+      const days = roundingMethod(dstNormalizedMinutes / minutesInDay);
+      return locale.formatDistance("xDays", days, localizeOptions);
     } else if (unit === "month") {
-      var months = roundingMethodFn(dstNormalizedMinutes / MINUTES_IN_MONTH);
-      return months === 12 && options.unit !== "month" ? locale2.formatDistance("xYears", 1, localizeOptions) : locale2.formatDistance("xMonths", months, localizeOptions);
-    } else if (unit === "year") {
-      var years = roundingMethodFn(dstNormalizedMinutes / MINUTES_IN_YEAR);
-      return locale2.formatDistance("xYears", years, localizeOptions);
+      const months = roundingMethod(dstNormalizedMinutes / minutesInMonth);
+      return months === 12 && defaultUnit !== "month" ? locale.formatDistance("xYears", 1, localizeOptions) : locale.formatDistance("xMonths", months, localizeOptions);
+    } else {
+      const years = roundingMethod(dstNormalizedMinutes / minutesInYear);
+      return locale.formatDistance("xYears", years, localizeOptions);
     }
-    throw new RangeError("unit must be 'second', 'minute', 'hour', 'day', 'month' or 'year'");
   }
 
   // js/change.js
@@ -4492,6 +3691,7 @@
     "bounds": "-90,-180,90,180",
     "comment": "",
     "runTime": 2,
+    "multi": true,
     "debug": false
   };
 
@@ -4794,7 +3994,6 @@
           }
         );
       } else if (!boundsContained) {
-        const duration = distance > 1e6 ? 3e3 : distance > 1e5 ? 2e3 : 1200;
         this.main.fitBounds(
           [
             [changeBounds.getWest(), changeBounds.getSouth()],
@@ -4803,7 +4002,7 @@
           {
             maxZoom: 18,
             padding: { top: 50, bottom: 200, left: 100, right: 100 },
-            duration
+            duration: this.getFlightDuration(distance)
           }
         );
       } else if (this.context.debug) {
@@ -4812,38 +4011,8 @@
       if (!this.currentChangesetId || !isSameChangeset) {
         this.currentChangesetId = changesetId;
       }
-      const targetLat = changeCenter.lat;
-      const targetLng = changeCenter.lng;
-      const maxCenterLat = 50;
-      let centerLat = targetLat;
-      let pitch = 0;
-      if (Math.abs(targetLat) > maxCenterLat) {
-        centerLat = Math.sign(targetLat) * maxCenterLat;
-        const latBeyond = Math.abs(targetLat) - maxCenterLat;
-        pitch = Math.min(50, latBeyond * 1.2);
-      }
-      const isCloseToLast = this.lastOverviewLocation && Math.abs(targetLat - this.lastOverviewLocation.lat) < 5 && Math.abs(targetLng - this.lastOverviewLocation.lng) < 5;
-      if (!isCloseToLast) {
-        this.overviewMarker.getElement().style.display = "none";
-      }
-      this.overviewMarker.setLngLat([targetLng, targetLat]);
-      this.lastOverviewLocation = { lat: targetLat, lng: targetLng };
-      this.overviewMap.flyTo({
-        center: [targetLng, centerLat],
-        pitch,
-        duration: 1500
-      });
-      this.overviewMap.once("moveend", () => {
-        this.overviewMarker.getElement().style.display = "block";
-      });
-      const color = {
-        create: "#B7FF00",
-        // Green
-        modify: "#FF00EA",
-        // Pink
-        delete: "#FF0000"
-        // Red
-      }[change.type];
+      this.updateOverviewGlobe(changeCenter);
+      const color = this.getChangeColor(change.type);
       const drawTime = this.context.runTime * 0.7;
       const waitTime = this.context.runTime - drawTime;
       const mapElement = change.type === "delete" ? change.old : change.neu;
@@ -4881,9 +4050,48 @@
       const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
       return R * c;
     }
+    getChangeColor(type2) {
+      return {
+        create: "#B7FF00",
+        modify: "#FF00EA",
+        delete: "#FF0000"
+      }[type2];
+    }
+    getFlightDuration(distance) {
+      return distance > 1e6 ? 3e3 : distance > 1e5 ? 2e3 : 1200;
+    }
+    updateOverviewGlobe(center, alwaysHideMarker = false) {
+      const targetLat = center.lat;
+      const targetLng = center.lng;
+      const maxCenterLat = 50;
+      let centerLat = targetLat;
+      let pitch = 0;
+      if (Math.abs(targetLat) > maxCenterLat) {
+        centerLat = Math.sign(targetLat) * maxCenterLat;
+        const latBeyond = Math.abs(targetLat) - maxCenterLat;
+        pitch = Math.min(50, latBeyond * 1.2);
+      }
+      const isCloseToLast = !alwaysHideMarker && this.lastOverviewLocation && Math.abs(targetLat - this.lastOverviewLocation.lat) < 5 && Math.abs(targetLng - this.lastOverviewLocation.lng) < 5;
+      if (!isCloseToLast) {
+        this.overviewMarker.getElement().style.display = "none";
+      }
+      this.overviewMarker.setLngLat([targetLng, targetLat]);
+      this.lastOverviewLocation = { lat: targetLat, lng: targetLng };
+      this.overviewMap.flyTo({
+        center: [targetLng, centerLat],
+        pitch,
+        duration: 1500
+      });
+      this.overviewMap.once("moveend", () => {
+        this.overviewMarker.getElement().style.display = "block";
+      });
+    }
     drawWay(mapElement, color, featureId, drawTime, waitTime, cb) {
       const isPolygon = mapElement.tags.building || mapElement.tags.area;
       const linestring = [...mapElement.linestring];
+      if (Math.random() > 0.5) {
+        linestring.reverse();
+      }
       const coordinates = [];
       const perPt = drawTime / linestring.length;
       const feature = {
@@ -4908,6 +4116,8 @@
           this.updateDrawnFeatures();
           window.setTimeout(drawPt, perPt);
         } else {
+          feature.properties.opacity = 0.5;
+          this.updateDrawnFeatures();
           window.setTimeout(cb, waitTime);
         }
       };
@@ -4945,10 +4155,93 @@
           this.updateDrawnFeatures();
           window.setTimeout(animateRadius, perRadius);
         } else {
+          feature.properties.opacity = 0.5;
+          this.updateDrawnFeatures();
           window.setTimeout(cb, waitTime);
         }
       };
       animateRadius();
+    }
+    // Draw multiple changes simultaneously
+    drawMapElementBatch(changes, cb) {
+      this.pruneMapElements();
+      const combinedBounds = new maplibregl.LngLatBounds();
+      for (const change of changes) {
+        const changeBounds = change.meta.bounds;
+        combinedBounds.extend([changeBounds.getWest(), changeBounds.getSouth()]);
+        combinedBounds.extend([changeBounds.getEast(), changeBounds.getNorth()]);
+      }
+      const changeCenter = combinedBounds.getCenter();
+      const changesetId = changes[0].meta.changeset;
+      this.currentChangesetId = changesetId;
+      const distance = this.getDistanceFromCenter(changeCenter);
+      this.main.fitBounds(
+        [
+          [combinedBounds.getWest(), combinedBounds.getSouth()],
+          [combinedBounds.getEast(), combinedBounds.getNorth()]
+        ],
+        {
+          maxZoom: 17,
+          // Slightly lower max zoom for batches
+          padding: 150,
+          duration: this.getFlightDuration(distance)
+        }
+      );
+      this.updateOverviewGlobe(changeCenter, true);
+      let completedCount = 0;
+      const totalCount = changes.length;
+      const onDrawingComplete = () => {
+        completedCount++;
+        if (completedCount === totalCount) {
+          cb();
+        }
+      };
+      const startAllDrawings = () => {
+        const CONCURRENT_DRAWINGS = 4 + Math.floor(Math.random() * 4);
+        const baseDrawTime = this.context.runTime * 0.7;
+        const spacingPerItem = baseDrawTime / CONCURRENT_DRAWINGS;
+        changes.forEach((change, index) => {
+          const baseDelay = index * spacingPerItem;
+          const jitter = (Math.random() - 0.5) * spacingPerItem;
+          const startDelay = Math.max(0, baseDelay + jitter);
+          const r2 = Math.random();
+          const speedMultiplier = r2 < 0.5 ? 0.5 + r2 : 1 + (r2 - 0.5) * 4;
+          setTimeout(() => {
+            this.drawSingleElement(change, speedMultiplier, onDrawingComplete);
+          }, startDelay);
+        });
+      };
+      if (distance > 1e3) {
+        this.main.once("moveend", startAllDrawings);
+      } else {
+        startAllDrawings();
+      }
+    }
+    /**
+     * Draw a single element with custom speed (used by batch drawing)
+     * speedMultiplier only affects ways; nodes use consistent timing
+     */
+    drawSingleElement(change, speedMultiplier, cb) {
+      const color = this.getChangeColor(change.type);
+      const baseDrawTime = this.context.runTime * 0.7;
+      const waitTime = 0;
+      const mapElement = change.type === "delete" ? change.old : change.neu;
+      const featureId = `feature-${this.featureCounter++}`;
+      switch (mapElement.type) {
+        case "way": {
+          const drawTime = baseDrawTime * speedMultiplier;
+          this.drawWay(mapElement, color, featureId, drawTime, waitTime, cb);
+          break;
+        }
+        case "node": {
+          this.drawNode(mapElement, color, featureId, baseDrawTime, waitTime, cb);
+          break;
+        }
+        default: {
+          console.warn("Unknown mapElement type:", mapElement.type);
+          cb();
+        }
+      }
     }
   };
 
@@ -5702,7 +4995,1499 @@
   // js/changeset-service.js
   init_define_process_env();
   init_buffer_global();
-  var import_lru_cache = __toESM(require_lru_cache(), 1);
+
+  // node_modules/lru-cache/dist/esm/index.js
+  init_define_process_env();
+  init_buffer_global();
+  var defaultPerf = typeof performance === "object" && performance && typeof performance.now === "function" ? performance : Date;
+  var warned = /* @__PURE__ */ new Set();
+  var PROCESS = typeof process === "object" && !!process ? process : {};
+  var emitWarning = (msg, type2, code, fn2) => {
+    typeof PROCESS.emitWarning === "function" ? PROCESS.emitWarning(msg, type2, code, fn2) : console.error(`[${code}] ${type2}: ${msg}`);
+  };
+  var AC = globalThis.AbortController;
+  var AS = globalThis.AbortSignal;
+  if (typeof AC === "undefined") {
+    AS = class AbortSignal {
+      constructor() {
+        __publicField(this, "onabort");
+        __publicField(this, "_onabort", []);
+        __publicField(this, "reason");
+        __publicField(this, "aborted", false);
+      }
+      addEventListener(_, fn2) {
+        this._onabort.push(fn2);
+      }
+    };
+    AC = class AbortController {
+      constructor() {
+        __publicField(this, "signal", new AS());
+        warnACPolyfill();
+      }
+      abort(reason) {
+        if (this.signal.aborted)
+          return;
+        this.signal.reason = reason;
+        this.signal.aborted = true;
+        for (const fn2 of this.signal._onabort) {
+          fn2(reason);
+        }
+        this.signal.onabort?.(reason);
+      }
+    };
+    let printACPolyfillWarning = PROCESS.env?.LRU_CACHE_IGNORE_AC_WARNING !== "1";
+    const warnACPolyfill = () => {
+      if (!printACPolyfillWarning)
+        return;
+      printACPolyfillWarning = false;
+      emitWarning("AbortController is not defined. If using lru-cache in node 14, load an AbortController polyfill from the `node-abort-controller` package. A minimal polyfill is provided for use by LRUCache.fetch(), but it should not be relied upon in other contexts (eg, passing it to other APIs that use AbortController/AbortSignal might have undesirable effects). You may disable this with LRU_CACHE_IGNORE_AC_WARNING=1 in the env.", "NO_ABORT_CONTROLLER", "ENOTSUP", warnACPolyfill);
+    };
+  }
+  var shouldWarn = (code) => !warned.has(code);
+  var isPosInt = (n) => n && n === Math.floor(n) && n > 0 && isFinite(n);
+  var getUintArray = (max) => !isPosInt(max) ? null : max <= Math.pow(2, 8) ? Uint8Array : max <= Math.pow(2, 16) ? Uint16Array : max <= Math.pow(2, 32) ? Uint32Array : max <= Number.MAX_SAFE_INTEGER ? ZeroArray : null;
+  var ZeroArray = class extends Array {
+    constructor(size) {
+      super(size);
+      this.fill(0);
+    }
+  };
+  var _constructing;
+  var _Stack = class _Stack {
+    constructor(max, HeapCls) {
+      __publicField(this, "heap");
+      __publicField(this, "length");
+      if (!__privateGet(_Stack, _constructing)) {
+        throw new TypeError("instantiate Stack using Stack.create(n)");
+      }
+      this.heap = new HeapCls(max);
+      this.length = 0;
+    }
+    static create(max) {
+      const HeapCls = getUintArray(max);
+      if (!HeapCls)
+        return [];
+      __privateSet(_Stack, _constructing, true);
+      const s = new _Stack(max, HeapCls);
+      __privateSet(_Stack, _constructing, false);
+      return s;
+    }
+    push(n) {
+      this.heap[this.length++] = n;
+    }
+    pop() {
+      return this.heap[--this.length];
+    }
+  };
+  _constructing = new WeakMap();
+  // private constructor
+  __privateAdd(_Stack, _constructing, false);
+  var Stack = _Stack;
+  var _a, _b, _max, _maxSize, _dispose, _onInsert, _disposeAfter, _fetchMethod, _memoMethod, _perf, _size, _calculatedSize, _keyMap, _keyList, _valList, _next, _prev, _head, _tail, _free, _disposed, _sizes, _starts, _ttls, _autopurgeTimers, _hasDispose, _hasFetchMethod, _hasDisposeAfter, _hasOnInsert, _LRUCache_instances, initializeTTLTracking_fn, _updateItemAge, _statusTTL, _setItemTTL, _isStale, initializeSizeTracking_fn, _removeItemSize, _addItemSize, _requireSize, indexes_fn, rindexes_fn, isValidIndex_fn, evict_fn, backgroundFetch_fn, isBackgroundFetch_fn, connect_fn, moveToTail_fn, delete_fn, clear_fn;
+  var _LRUCache = class _LRUCache {
+    constructor(options) {
+      __privateAdd(this, _LRUCache_instances);
+      // options that cannot be changed without disaster
+      __privateAdd(this, _max);
+      __privateAdd(this, _maxSize);
+      __privateAdd(this, _dispose);
+      __privateAdd(this, _onInsert);
+      __privateAdd(this, _disposeAfter);
+      __privateAdd(this, _fetchMethod);
+      __privateAdd(this, _memoMethod);
+      __privateAdd(this, _perf);
+      /**
+       * {@link LRUCache.OptionsBase.ttl}
+       */
+      __publicField(this, "ttl");
+      /**
+       * {@link LRUCache.OptionsBase.ttlResolution}
+       */
+      __publicField(this, "ttlResolution");
+      /**
+       * {@link LRUCache.OptionsBase.ttlAutopurge}
+       */
+      __publicField(this, "ttlAutopurge");
+      /**
+       * {@link LRUCache.OptionsBase.updateAgeOnGet}
+       */
+      __publicField(this, "updateAgeOnGet");
+      /**
+       * {@link LRUCache.OptionsBase.updateAgeOnHas}
+       */
+      __publicField(this, "updateAgeOnHas");
+      /**
+       * {@link LRUCache.OptionsBase.allowStale}
+       */
+      __publicField(this, "allowStale");
+      /**
+       * {@link LRUCache.OptionsBase.noDisposeOnSet}
+       */
+      __publicField(this, "noDisposeOnSet");
+      /**
+       * {@link LRUCache.OptionsBase.noUpdateTTL}
+       */
+      __publicField(this, "noUpdateTTL");
+      /**
+       * {@link LRUCache.OptionsBase.maxEntrySize}
+       */
+      __publicField(this, "maxEntrySize");
+      /**
+       * {@link LRUCache.OptionsBase.sizeCalculation}
+       */
+      __publicField(this, "sizeCalculation");
+      /**
+       * {@link LRUCache.OptionsBase.noDeleteOnFetchRejection}
+       */
+      __publicField(this, "noDeleteOnFetchRejection");
+      /**
+       * {@link LRUCache.OptionsBase.noDeleteOnStaleGet}
+       */
+      __publicField(this, "noDeleteOnStaleGet");
+      /**
+       * {@link LRUCache.OptionsBase.allowStaleOnFetchAbort}
+       */
+      __publicField(this, "allowStaleOnFetchAbort");
+      /**
+       * {@link LRUCache.OptionsBase.allowStaleOnFetchRejection}
+       */
+      __publicField(this, "allowStaleOnFetchRejection");
+      /**
+       * {@link LRUCache.OptionsBase.ignoreFetchAbort}
+       */
+      __publicField(this, "ignoreFetchAbort");
+      // computed properties
+      __privateAdd(this, _size);
+      __privateAdd(this, _calculatedSize);
+      __privateAdd(this, _keyMap);
+      __privateAdd(this, _keyList);
+      __privateAdd(this, _valList);
+      __privateAdd(this, _next);
+      __privateAdd(this, _prev);
+      __privateAdd(this, _head);
+      __privateAdd(this, _tail);
+      __privateAdd(this, _free);
+      __privateAdd(this, _disposed);
+      __privateAdd(this, _sizes);
+      __privateAdd(this, _starts);
+      __privateAdd(this, _ttls);
+      __privateAdd(this, _autopurgeTimers);
+      __privateAdd(this, _hasDispose);
+      __privateAdd(this, _hasFetchMethod);
+      __privateAdd(this, _hasDisposeAfter);
+      __privateAdd(this, _hasOnInsert);
+      // conditionally set private methods related to TTL
+      __privateAdd(this, _updateItemAge, () => {
+      });
+      __privateAdd(this, _statusTTL, () => {
+      });
+      __privateAdd(this, _setItemTTL, () => {
+      });
+      /* c8 ignore stop */
+      __privateAdd(this, _isStale, () => false);
+      __privateAdd(this, _removeItemSize, (_i) => {
+      });
+      __privateAdd(this, _addItemSize, (_i, _s, _st) => {
+      });
+      __privateAdd(this, _requireSize, (_k, _v, size, sizeCalculation) => {
+        if (size || sizeCalculation) {
+          throw new TypeError("cannot set size without setting maxSize or maxEntrySize on cache");
+        }
+        return 0;
+      });
+      /**
+       * A String value that is used in the creation of the default string
+       * description of an object. Called by the built-in method
+       * `Object.prototype.toString`.
+       */
+      __publicField(this, _a, "LRUCache");
+      const { max = 0, ttl, ttlResolution = 1, ttlAutopurge, updateAgeOnGet, updateAgeOnHas, allowStale, dispose, onInsert, disposeAfter, noDisposeOnSet, noUpdateTTL, maxSize = 0, maxEntrySize = 0, sizeCalculation, fetchMethod, memoMethod, noDeleteOnFetchRejection, noDeleteOnStaleGet, allowStaleOnFetchRejection, allowStaleOnFetchAbort, ignoreFetchAbort, perf } = options;
+      if (perf !== void 0) {
+        if (typeof perf?.now !== "function") {
+          throw new TypeError("perf option must have a now() method if specified");
+        }
+      }
+      __privateSet(this, _perf, perf ?? defaultPerf);
+      if (max !== 0 && !isPosInt(max)) {
+        throw new TypeError("max option must be a nonnegative integer");
+      }
+      const UintArray = max ? getUintArray(max) : Array;
+      if (!UintArray) {
+        throw new Error("invalid max value: " + max);
+      }
+      __privateSet(this, _max, max);
+      __privateSet(this, _maxSize, maxSize);
+      this.maxEntrySize = maxEntrySize || __privateGet(this, _maxSize);
+      this.sizeCalculation = sizeCalculation;
+      if (this.sizeCalculation) {
+        if (!__privateGet(this, _maxSize) && !this.maxEntrySize) {
+          throw new TypeError("cannot set sizeCalculation without setting maxSize or maxEntrySize");
+        }
+        if (typeof this.sizeCalculation !== "function") {
+          throw new TypeError("sizeCalculation set to non-function");
+        }
+      }
+      if (memoMethod !== void 0 && typeof memoMethod !== "function") {
+        throw new TypeError("memoMethod must be a function if defined");
+      }
+      __privateSet(this, _memoMethod, memoMethod);
+      if (fetchMethod !== void 0 && typeof fetchMethod !== "function") {
+        throw new TypeError("fetchMethod must be a function if specified");
+      }
+      __privateSet(this, _fetchMethod, fetchMethod);
+      __privateSet(this, _hasFetchMethod, !!fetchMethod);
+      __privateSet(this, _keyMap, /* @__PURE__ */ new Map());
+      __privateSet(this, _keyList, new Array(max).fill(void 0));
+      __privateSet(this, _valList, new Array(max).fill(void 0));
+      __privateSet(this, _next, new UintArray(max));
+      __privateSet(this, _prev, new UintArray(max));
+      __privateSet(this, _head, 0);
+      __privateSet(this, _tail, 0);
+      __privateSet(this, _free, Stack.create(max));
+      __privateSet(this, _size, 0);
+      __privateSet(this, _calculatedSize, 0);
+      if (typeof dispose === "function") {
+        __privateSet(this, _dispose, dispose);
+      }
+      if (typeof onInsert === "function") {
+        __privateSet(this, _onInsert, onInsert);
+      }
+      if (typeof disposeAfter === "function") {
+        __privateSet(this, _disposeAfter, disposeAfter);
+        __privateSet(this, _disposed, []);
+      } else {
+        __privateSet(this, _disposeAfter, void 0);
+        __privateSet(this, _disposed, void 0);
+      }
+      __privateSet(this, _hasDispose, !!__privateGet(this, _dispose));
+      __privateSet(this, _hasOnInsert, !!__privateGet(this, _onInsert));
+      __privateSet(this, _hasDisposeAfter, !!__privateGet(this, _disposeAfter));
+      this.noDisposeOnSet = !!noDisposeOnSet;
+      this.noUpdateTTL = !!noUpdateTTL;
+      this.noDeleteOnFetchRejection = !!noDeleteOnFetchRejection;
+      this.allowStaleOnFetchRejection = !!allowStaleOnFetchRejection;
+      this.allowStaleOnFetchAbort = !!allowStaleOnFetchAbort;
+      this.ignoreFetchAbort = !!ignoreFetchAbort;
+      if (this.maxEntrySize !== 0) {
+        if (__privateGet(this, _maxSize) !== 0) {
+          if (!isPosInt(__privateGet(this, _maxSize))) {
+            throw new TypeError("maxSize must be a positive integer if specified");
+          }
+        }
+        if (!isPosInt(this.maxEntrySize)) {
+          throw new TypeError("maxEntrySize must be a positive integer if specified");
+        }
+        __privateMethod(this, _LRUCache_instances, initializeSizeTracking_fn).call(this);
+      }
+      this.allowStale = !!allowStale;
+      this.noDeleteOnStaleGet = !!noDeleteOnStaleGet;
+      this.updateAgeOnGet = !!updateAgeOnGet;
+      this.updateAgeOnHas = !!updateAgeOnHas;
+      this.ttlResolution = isPosInt(ttlResolution) || ttlResolution === 0 ? ttlResolution : 1;
+      this.ttlAutopurge = !!ttlAutopurge;
+      this.ttl = ttl || 0;
+      if (this.ttl) {
+        if (!isPosInt(this.ttl)) {
+          throw new TypeError("ttl must be a positive integer if specified");
+        }
+        __privateMethod(this, _LRUCache_instances, initializeTTLTracking_fn).call(this);
+      }
+      if (__privateGet(this, _max) === 0 && this.ttl === 0 && __privateGet(this, _maxSize) === 0) {
+        throw new TypeError("At least one of max, maxSize, or ttl is required");
+      }
+      if (!this.ttlAutopurge && !__privateGet(this, _max) && !__privateGet(this, _maxSize)) {
+        const code = "LRU_CACHE_UNBOUNDED";
+        if (shouldWarn(code)) {
+          warned.add(code);
+          const msg = "TTL caching without ttlAutopurge, max, or maxSize can result in unbounded memory consumption.";
+          emitWarning(msg, "UnboundedCacheWarning", code, _LRUCache);
+        }
+      }
+    }
+    /**
+     * {@link LRUCache.OptionsBase.perf}
+     */
+    get perf() {
+      return __privateGet(this, _perf);
+    }
+    /**
+     * Do not call this method unless you need to inspect the
+     * inner workings of the cache.  If anything returned by this
+     * object is modified in any way, strange breakage may occur.
+     *
+     * These fields are private for a reason!
+     *
+     * @internal
+     */
+    static unsafeExposeInternals(c) {
+      return {
+        // properties
+        starts: __privateGet(c, _starts),
+        ttls: __privateGet(c, _ttls),
+        autopurgeTimers: __privateGet(c, _autopurgeTimers),
+        sizes: __privateGet(c, _sizes),
+        keyMap: __privateGet(c, _keyMap),
+        keyList: __privateGet(c, _keyList),
+        valList: __privateGet(c, _valList),
+        next: __privateGet(c, _next),
+        prev: __privateGet(c, _prev),
+        get head() {
+          return __privateGet(c, _head);
+        },
+        get tail() {
+          return __privateGet(c, _tail);
+        },
+        free: __privateGet(c, _free),
+        // methods
+        isBackgroundFetch: (p) => {
+          var _a2;
+          return __privateMethod(_a2 = c, _LRUCache_instances, isBackgroundFetch_fn).call(_a2, p);
+        },
+        backgroundFetch: (k, index, options, context) => {
+          var _a2;
+          return __privateMethod(_a2 = c, _LRUCache_instances, backgroundFetch_fn).call(_a2, k, index, options, context);
+        },
+        moveToTail: (index) => {
+          var _a2;
+          return __privateMethod(_a2 = c, _LRUCache_instances, moveToTail_fn).call(_a2, index);
+        },
+        indexes: (options) => {
+          var _a2;
+          return __privateMethod(_a2 = c, _LRUCache_instances, indexes_fn).call(_a2, options);
+        },
+        rindexes: (options) => {
+          var _a2;
+          return __privateMethod(_a2 = c, _LRUCache_instances, rindexes_fn).call(_a2, options);
+        },
+        isStale: (index) => {
+          var _a2;
+          return __privateGet(_a2 = c, _isStale).call(_a2, index);
+        }
+      };
+    }
+    // Protected read-only members
+    /**
+     * {@link LRUCache.OptionsBase.max} (read-only)
+     */
+    get max() {
+      return __privateGet(this, _max);
+    }
+    /**
+     * {@link LRUCache.OptionsBase.maxSize} (read-only)
+     */
+    get maxSize() {
+      return __privateGet(this, _maxSize);
+    }
+    /**
+     * The total computed size of items in the cache (read-only)
+     */
+    get calculatedSize() {
+      return __privateGet(this, _calculatedSize);
+    }
+    /**
+     * The number of items stored in the cache (read-only)
+     */
+    get size() {
+      return __privateGet(this, _size);
+    }
+    /**
+     * {@link LRUCache.OptionsBase.fetchMethod} (read-only)
+     */
+    get fetchMethod() {
+      return __privateGet(this, _fetchMethod);
+    }
+    get memoMethod() {
+      return __privateGet(this, _memoMethod);
+    }
+    /**
+     * {@link LRUCache.OptionsBase.dispose} (read-only)
+     */
+    get dispose() {
+      return __privateGet(this, _dispose);
+    }
+    /**
+     * {@link LRUCache.OptionsBase.onInsert} (read-only)
+     */
+    get onInsert() {
+      return __privateGet(this, _onInsert);
+    }
+    /**
+     * {@link LRUCache.OptionsBase.disposeAfter} (read-only)
+     */
+    get disposeAfter() {
+      return __privateGet(this, _disposeAfter);
+    }
+    /**
+     * Return the number of ms left in the item's TTL. If item is not in cache,
+     * returns `0`. Returns `Infinity` if item is in cache without a defined TTL.
+     */
+    getRemainingTTL(key) {
+      return __privateGet(this, _keyMap).has(key) ? Infinity : 0;
+    }
+    /**
+     * Return a generator yielding `[key, value]` pairs,
+     * in order from most recently used to least recently used.
+     */
+    *entries() {
+      for (const i of __privateMethod(this, _LRUCache_instances, indexes_fn).call(this)) {
+        if (__privateGet(this, _valList)[i] !== void 0 && __privateGet(this, _keyList)[i] !== void 0 && !__privateMethod(this, _LRUCache_instances, isBackgroundFetch_fn).call(this, __privateGet(this, _valList)[i])) {
+          yield [__privateGet(this, _keyList)[i], __privateGet(this, _valList)[i]];
+        }
+      }
+    }
+    /**
+     * Inverse order version of {@link LRUCache.entries}
+     *
+     * Return a generator yielding `[key, value]` pairs,
+     * in order from least recently used to most recently used.
+     */
+    *rentries() {
+      for (const i of __privateMethod(this, _LRUCache_instances, rindexes_fn).call(this)) {
+        if (__privateGet(this, _valList)[i] !== void 0 && __privateGet(this, _keyList)[i] !== void 0 && !__privateMethod(this, _LRUCache_instances, isBackgroundFetch_fn).call(this, __privateGet(this, _valList)[i])) {
+          yield [__privateGet(this, _keyList)[i], __privateGet(this, _valList)[i]];
+        }
+      }
+    }
+    /**
+     * Return a generator yielding the keys in the cache,
+     * in order from most recently used to least recently used.
+     */
+    *keys() {
+      for (const i of __privateMethod(this, _LRUCache_instances, indexes_fn).call(this)) {
+        const k = __privateGet(this, _keyList)[i];
+        if (k !== void 0 && !__privateMethod(this, _LRUCache_instances, isBackgroundFetch_fn).call(this, __privateGet(this, _valList)[i])) {
+          yield k;
+        }
+      }
+    }
+    /**
+     * Inverse order version of {@link LRUCache.keys}
+     *
+     * Return a generator yielding the keys in the cache,
+     * in order from least recently used to most recently used.
+     */
+    *rkeys() {
+      for (const i of __privateMethod(this, _LRUCache_instances, rindexes_fn).call(this)) {
+        const k = __privateGet(this, _keyList)[i];
+        if (k !== void 0 && !__privateMethod(this, _LRUCache_instances, isBackgroundFetch_fn).call(this, __privateGet(this, _valList)[i])) {
+          yield k;
+        }
+      }
+    }
+    /**
+     * Return a generator yielding the values in the cache,
+     * in order from most recently used to least recently used.
+     */
+    *values() {
+      for (const i of __privateMethod(this, _LRUCache_instances, indexes_fn).call(this)) {
+        const v = __privateGet(this, _valList)[i];
+        if (v !== void 0 && !__privateMethod(this, _LRUCache_instances, isBackgroundFetch_fn).call(this, __privateGet(this, _valList)[i])) {
+          yield __privateGet(this, _valList)[i];
+        }
+      }
+    }
+    /**
+     * Inverse order version of {@link LRUCache.values}
+     *
+     * Return a generator yielding the values in the cache,
+     * in order from least recently used to most recently used.
+     */
+    *rvalues() {
+      for (const i of __privateMethod(this, _LRUCache_instances, rindexes_fn).call(this)) {
+        const v = __privateGet(this, _valList)[i];
+        if (v !== void 0 && !__privateMethod(this, _LRUCache_instances, isBackgroundFetch_fn).call(this, __privateGet(this, _valList)[i])) {
+          yield __privateGet(this, _valList)[i];
+        }
+      }
+    }
+    /**
+     * Iterating over the cache itself yields the same results as
+     * {@link LRUCache.entries}
+     */
+    [(_b = Symbol.iterator, _a = Symbol.toStringTag, _b)]() {
+      return this.entries();
+    }
+    /**
+     * Find a value for which the supplied fn method returns a truthy value,
+     * similar to `Array.find()`. fn is called as `fn(value, key, cache)`.
+     */
+    find(fn2, getOptions = {}) {
+      for (const i of __privateMethod(this, _LRUCache_instances, indexes_fn).call(this)) {
+        const v = __privateGet(this, _valList)[i];
+        const value = __privateMethod(this, _LRUCache_instances, isBackgroundFetch_fn).call(this, v) ? v.__staleWhileFetching : v;
+        if (value === void 0)
+          continue;
+        if (fn2(value, __privateGet(this, _keyList)[i], this)) {
+          return this.get(__privateGet(this, _keyList)[i], getOptions);
+        }
+      }
+    }
+    /**
+     * Call the supplied function on each item in the cache, in order from most
+     * recently used to least recently used.
+     *
+     * `fn` is called as `fn(value, key, cache)`.
+     *
+     * If `thisp` is provided, function will be called in the `this`-context of
+     * the provided object, or the cache if no `thisp` object is provided.
+     *
+     * Does not update age or recenty of use, or iterate over stale values.
+     */
+    forEach(fn2, thisp = this) {
+      for (const i of __privateMethod(this, _LRUCache_instances, indexes_fn).call(this)) {
+        const v = __privateGet(this, _valList)[i];
+        const value = __privateMethod(this, _LRUCache_instances, isBackgroundFetch_fn).call(this, v) ? v.__staleWhileFetching : v;
+        if (value === void 0)
+          continue;
+        fn2.call(thisp, value, __privateGet(this, _keyList)[i], this);
+      }
+    }
+    /**
+     * The same as {@link LRUCache.forEach} but items are iterated over in
+     * reverse order.  (ie, less recently used items are iterated over first.)
+     */
+    rforEach(fn2, thisp = this) {
+      for (const i of __privateMethod(this, _LRUCache_instances, rindexes_fn).call(this)) {
+        const v = __privateGet(this, _valList)[i];
+        const value = __privateMethod(this, _LRUCache_instances, isBackgroundFetch_fn).call(this, v) ? v.__staleWhileFetching : v;
+        if (value === void 0)
+          continue;
+        fn2.call(thisp, value, __privateGet(this, _keyList)[i], this);
+      }
+    }
+    /**
+     * Delete any stale entries. Returns true if anything was removed,
+     * false otherwise.
+     */
+    purgeStale() {
+      let deleted = false;
+      for (const i of __privateMethod(this, _LRUCache_instances, rindexes_fn).call(this, { allowStale: true })) {
+        if (__privateGet(this, _isStale).call(this, i)) {
+          __privateMethod(this, _LRUCache_instances, delete_fn).call(this, __privateGet(this, _keyList)[i], "expire");
+          deleted = true;
+        }
+      }
+      return deleted;
+    }
+    /**
+     * Get the extended info about a given entry, to get its value, size, and
+     * TTL info simultaneously. Returns `undefined` if the key is not present.
+     *
+     * Unlike {@link LRUCache#dump}, which is designed to be portable and survive
+     * serialization, the `start` value is always the current timestamp, and the
+     * `ttl` is a calculated remaining time to live (negative if expired).
+     *
+     * Always returns stale values, if their info is found in the cache, so be
+     * sure to check for expirations (ie, a negative {@link LRUCache.Entry#ttl})
+     * if relevant.
+     */
+    info(key) {
+      const i = __privateGet(this, _keyMap).get(key);
+      if (i === void 0)
+        return void 0;
+      const v = __privateGet(this, _valList)[i];
+      const value = __privateMethod(this, _LRUCache_instances, isBackgroundFetch_fn).call(this, v) ? v.__staleWhileFetching : v;
+      if (value === void 0)
+        return void 0;
+      const entry = { value };
+      if (__privateGet(this, _ttls) && __privateGet(this, _starts)) {
+        const ttl = __privateGet(this, _ttls)[i];
+        const start = __privateGet(this, _starts)[i];
+        if (ttl && start) {
+          const remain = ttl - (__privateGet(this, _perf).now() - start);
+          entry.ttl = remain;
+          entry.start = Date.now();
+        }
+      }
+      if (__privateGet(this, _sizes)) {
+        entry.size = __privateGet(this, _sizes)[i];
+      }
+      return entry;
+    }
+    /**
+     * Return an array of [key, {@link LRUCache.Entry}] tuples which can be
+     * passed to {@link LRUCache#load}.
+     *
+     * The `start` fields are calculated relative to a portable `Date.now()`
+     * timestamp, even if `performance.now()` is available.
+     *
+     * Stale entries are always included in the `dump`, even if
+     * {@link LRUCache.OptionsBase.allowStale} is false.
+     *
+     * Note: this returns an actual array, not a generator, so it can be more
+     * easily passed around.
+     */
+    dump() {
+      const arr = [];
+      for (const i of __privateMethod(this, _LRUCache_instances, indexes_fn).call(this, { allowStale: true })) {
+        const key = __privateGet(this, _keyList)[i];
+        const v = __privateGet(this, _valList)[i];
+        const value = __privateMethod(this, _LRUCache_instances, isBackgroundFetch_fn).call(this, v) ? v.__staleWhileFetching : v;
+        if (value === void 0 || key === void 0)
+          continue;
+        const entry = { value };
+        if (__privateGet(this, _ttls) && __privateGet(this, _starts)) {
+          entry.ttl = __privateGet(this, _ttls)[i];
+          const age = __privateGet(this, _perf).now() - __privateGet(this, _starts)[i];
+          entry.start = Math.floor(Date.now() - age);
+        }
+        if (__privateGet(this, _sizes)) {
+          entry.size = __privateGet(this, _sizes)[i];
+        }
+        arr.unshift([key, entry]);
+      }
+      return arr;
+    }
+    /**
+     * Reset the cache and load in the items in entries in the order listed.
+     *
+     * The shape of the resulting cache may be different if the same options are
+     * not used in both caches.
+     *
+     * The `start` fields are assumed to be calculated relative to a portable
+     * `Date.now()` timestamp, even if `performance.now()` is available.
+     */
+    load(arr) {
+      this.clear();
+      for (const [key, entry] of arr) {
+        if (entry.start) {
+          const age = Date.now() - entry.start;
+          entry.start = __privateGet(this, _perf).now() - age;
+        }
+        this.set(key, entry.value, entry);
+      }
+    }
+    /**
+     * Add a value to the cache.
+     *
+     * Note: if `undefined` is specified as a value, this is an alias for
+     * {@link LRUCache#delete}
+     *
+     * Fields on the {@link LRUCache.SetOptions} options param will override
+     * their corresponding values in the constructor options for the scope
+     * of this single `set()` operation.
+     *
+     * If `start` is provided, then that will set the effective start
+     * time for the TTL calculation. Note that this must be a previous
+     * value of `performance.now()` if supported, or a previous value of
+     * `Date.now()` if not.
+     *
+     * Options object may also include `size`, which will prevent
+     * calling the `sizeCalculation` function and just use the specified
+     * number if it is a positive integer, and `noDisposeOnSet` which
+     * will prevent calling a `dispose` function in the case of
+     * overwrites.
+     *
+     * If the `size` (or return value of `sizeCalculation`) for a given
+     * entry is greater than `maxEntrySize`, then the item will not be
+     * added to the cache.
+     *
+     * Will update the recency of the entry.
+     *
+     * If the value is `undefined`, then this is an alias for
+     * `cache.delete(key)`. `undefined` is never stored in the cache.
+     */
+    set(k, v, setOptions = {}) {
+      var _a2, _b2, _c, _d;
+      if (v === void 0) {
+        this.delete(k);
+        return this;
+      }
+      const { ttl = this.ttl, start, noDisposeOnSet = this.noDisposeOnSet, sizeCalculation = this.sizeCalculation, status } = setOptions;
+      let { noUpdateTTL = this.noUpdateTTL } = setOptions;
+      const size = __privateGet(this, _requireSize).call(this, k, v, setOptions.size || 0, sizeCalculation);
+      if (this.maxEntrySize && size > this.maxEntrySize) {
+        if (status) {
+          status.set = "miss";
+          status.maxEntrySizeExceeded = true;
+        }
+        __privateMethod(this, _LRUCache_instances, delete_fn).call(this, k, "set");
+        return this;
+      }
+      let index = __privateGet(this, _size) === 0 ? void 0 : __privateGet(this, _keyMap).get(k);
+      if (index === void 0) {
+        index = __privateGet(this, _size) === 0 ? __privateGet(this, _tail) : __privateGet(this, _free).length !== 0 ? __privateGet(this, _free).pop() : __privateGet(this, _size) === __privateGet(this, _max) ? __privateMethod(this, _LRUCache_instances, evict_fn).call(this, false) : __privateGet(this, _size);
+        __privateGet(this, _keyList)[index] = k;
+        __privateGet(this, _valList)[index] = v;
+        __privateGet(this, _keyMap).set(k, index);
+        __privateGet(this, _next)[__privateGet(this, _tail)] = index;
+        __privateGet(this, _prev)[index] = __privateGet(this, _tail);
+        __privateSet(this, _tail, index);
+        __privateWrapper(this, _size)._++;
+        __privateGet(this, _addItemSize).call(this, index, size, status);
+        if (status)
+          status.set = "add";
+        noUpdateTTL = false;
+        if (__privateGet(this, _hasOnInsert)) {
+          (_a2 = __privateGet(this, _onInsert)) == null ? void 0 : _a2.call(this, v, k, "add");
+        }
+      } else {
+        __privateMethod(this, _LRUCache_instances, moveToTail_fn).call(this, index);
+        const oldVal = __privateGet(this, _valList)[index];
+        if (v !== oldVal) {
+          if (__privateGet(this, _hasFetchMethod) && __privateMethod(this, _LRUCache_instances, isBackgroundFetch_fn).call(this, oldVal)) {
+            oldVal.__abortController.abort(new Error("replaced"));
+            const { __staleWhileFetching: s } = oldVal;
+            if (s !== void 0 && !noDisposeOnSet) {
+              if (__privateGet(this, _hasDispose)) {
+                (_b2 = __privateGet(this, _dispose)) == null ? void 0 : _b2.call(this, s, k, "set");
+              }
+              if (__privateGet(this, _hasDisposeAfter)) {
+                __privateGet(this, _disposed)?.push([s, k, "set"]);
+              }
+            }
+          } else if (!noDisposeOnSet) {
+            if (__privateGet(this, _hasDispose)) {
+              (_c = __privateGet(this, _dispose)) == null ? void 0 : _c.call(this, oldVal, k, "set");
+            }
+            if (__privateGet(this, _hasDisposeAfter)) {
+              __privateGet(this, _disposed)?.push([oldVal, k, "set"]);
+            }
+          }
+          __privateGet(this, _removeItemSize).call(this, index);
+          __privateGet(this, _addItemSize).call(this, index, size, status);
+          __privateGet(this, _valList)[index] = v;
+          if (status) {
+            status.set = "replace";
+            const oldValue = oldVal && __privateMethod(this, _LRUCache_instances, isBackgroundFetch_fn).call(this, oldVal) ? oldVal.__staleWhileFetching : oldVal;
+            if (oldValue !== void 0)
+              status.oldValue = oldValue;
+          }
+        } else if (status) {
+          status.set = "update";
+        }
+        if (__privateGet(this, _hasOnInsert)) {
+          this.onInsert?.(v, k, v === oldVal ? "update" : "replace");
+        }
+      }
+      if (ttl !== 0 && !__privateGet(this, _ttls)) {
+        __privateMethod(this, _LRUCache_instances, initializeTTLTracking_fn).call(this);
+      }
+      if (__privateGet(this, _ttls)) {
+        if (!noUpdateTTL) {
+          __privateGet(this, _setItemTTL).call(this, index, ttl, start);
+        }
+        if (status)
+          __privateGet(this, _statusTTL).call(this, status, index);
+      }
+      if (!noDisposeOnSet && __privateGet(this, _hasDisposeAfter) && __privateGet(this, _disposed)) {
+        const dt = __privateGet(this, _disposed);
+        let task;
+        while (task = dt?.shift()) {
+          (_d = __privateGet(this, _disposeAfter)) == null ? void 0 : _d.call(this, ...task);
+        }
+      }
+      return this;
+    }
+    /**
+     * Evict the least recently used item, returning its value or
+     * `undefined` if cache is empty.
+     */
+    pop() {
+      var _a2;
+      try {
+        while (__privateGet(this, _size)) {
+          const val = __privateGet(this, _valList)[__privateGet(this, _head)];
+          __privateMethod(this, _LRUCache_instances, evict_fn).call(this, true);
+          if (__privateMethod(this, _LRUCache_instances, isBackgroundFetch_fn).call(this, val)) {
+            if (val.__staleWhileFetching) {
+              return val.__staleWhileFetching;
+            }
+          } else if (val !== void 0) {
+            return val;
+          }
+        }
+      } finally {
+        if (__privateGet(this, _hasDisposeAfter) && __privateGet(this, _disposed)) {
+          const dt = __privateGet(this, _disposed);
+          let task;
+          while (task = dt?.shift()) {
+            (_a2 = __privateGet(this, _disposeAfter)) == null ? void 0 : _a2.call(this, ...task);
+          }
+        }
+      }
+    }
+    /**
+     * Check if a key is in the cache, without updating the recency of use.
+     * Will return false if the item is stale, even though it is technically
+     * in the cache.
+     *
+     * Check if a key is in the cache, without updating the recency of
+     * use. Age is updated if {@link LRUCache.OptionsBase.updateAgeOnHas} is set
+     * to `true` in either the options or the constructor.
+     *
+     * Will return `false` if the item is stale, even though it is technically in
+     * the cache. The difference can be determined (if it matters) by using a
+     * `status` argument, and inspecting the `has` field.
+     *
+     * Will not update item age unless
+     * {@link LRUCache.OptionsBase.updateAgeOnHas} is set.
+     */
+    has(k, hasOptions = {}) {
+      const { updateAgeOnHas = this.updateAgeOnHas, status } = hasOptions;
+      const index = __privateGet(this, _keyMap).get(k);
+      if (index !== void 0) {
+        const v = __privateGet(this, _valList)[index];
+        if (__privateMethod(this, _LRUCache_instances, isBackgroundFetch_fn).call(this, v) && v.__staleWhileFetching === void 0) {
+          return false;
+        }
+        if (!__privateGet(this, _isStale).call(this, index)) {
+          if (updateAgeOnHas) {
+            __privateGet(this, _updateItemAge).call(this, index);
+          }
+          if (status) {
+            status.has = "hit";
+            __privateGet(this, _statusTTL).call(this, status, index);
+          }
+          return true;
+        } else if (status) {
+          status.has = "stale";
+          __privateGet(this, _statusTTL).call(this, status, index);
+        }
+      } else if (status) {
+        status.has = "miss";
+      }
+      return false;
+    }
+    /**
+     * Like {@link LRUCache#get} but doesn't update recency or delete stale
+     * items.
+     *
+     * Returns `undefined` if the item is stale, unless
+     * {@link LRUCache.OptionsBase.allowStale} is set.
+     */
+    peek(k, peekOptions = {}) {
+      const { allowStale = this.allowStale } = peekOptions;
+      const index = __privateGet(this, _keyMap).get(k);
+      if (index === void 0 || !allowStale && __privateGet(this, _isStale).call(this, index)) {
+        return;
+      }
+      const v = __privateGet(this, _valList)[index];
+      return __privateMethod(this, _LRUCache_instances, isBackgroundFetch_fn).call(this, v) ? v.__staleWhileFetching : v;
+    }
+    async fetch(k, fetchOptions = {}) {
+      const {
+        // get options
+        allowStale = this.allowStale,
+        updateAgeOnGet = this.updateAgeOnGet,
+        noDeleteOnStaleGet = this.noDeleteOnStaleGet,
+        // set options
+        ttl = this.ttl,
+        noDisposeOnSet = this.noDisposeOnSet,
+        size = 0,
+        sizeCalculation = this.sizeCalculation,
+        noUpdateTTL = this.noUpdateTTL,
+        // fetch exclusive options
+        noDeleteOnFetchRejection = this.noDeleteOnFetchRejection,
+        allowStaleOnFetchRejection = this.allowStaleOnFetchRejection,
+        ignoreFetchAbort = this.ignoreFetchAbort,
+        allowStaleOnFetchAbort = this.allowStaleOnFetchAbort,
+        context,
+        forceRefresh = false,
+        status,
+        signal
+      } = fetchOptions;
+      if (!__privateGet(this, _hasFetchMethod)) {
+        if (status)
+          status.fetch = "get";
+        return this.get(k, {
+          allowStale,
+          updateAgeOnGet,
+          noDeleteOnStaleGet,
+          status
+        });
+      }
+      const options = {
+        allowStale,
+        updateAgeOnGet,
+        noDeleteOnStaleGet,
+        ttl,
+        noDisposeOnSet,
+        size,
+        sizeCalculation,
+        noUpdateTTL,
+        noDeleteOnFetchRejection,
+        allowStaleOnFetchRejection,
+        allowStaleOnFetchAbort,
+        ignoreFetchAbort,
+        status,
+        signal
+      };
+      let index = __privateGet(this, _keyMap).get(k);
+      if (index === void 0) {
+        if (status)
+          status.fetch = "miss";
+        const p = __privateMethod(this, _LRUCache_instances, backgroundFetch_fn).call(this, k, index, options, context);
+        return p.__returned = p;
+      } else {
+        const v = __privateGet(this, _valList)[index];
+        if (__privateMethod(this, _LRUCache_instances, isBackgroundFetch_fn).call(this, v)) {
+          const stale = allowStale && v.__staleWhileFetching !== void 0;
+          if (status) {
+            status.fetch = "inflight";
+            if (stale)
+              status.returnedStale = true;
+          }
+          return stale ? v.__staleWhileFetching : v.__returned = v;
+        }
+        const isStale = __privateGet(this, _isStale).call(this, index);
+        if (!forceRefresh && !isStale) {
+          if (status)
+            status.fetch = "hit";
+          __privateMethod(this, _LRUCache_instances, moveToTail_fn).call(this, index);
+          if (updateAgeOnGet) {
+            __privateGet(this, _updateItemAge).call(this, index);
+          }
+          if (status)
+            __privateGet(this, _statusTTL).call(this, status, index);
+          return v;
+        }
+        const p = __privateMethod(this, _LRUCache_instances, backgroundFetch_fn).call(this, k, index, options, context);
+        const hasStale = p.__staleWhileFetching !== void 0;
+        const staleVal = hasStale && allowStale;
+        if (status) {
+          status.fetch = isStale ? "stale" : "refresh";
+          if (staleVal && isStale)
+            status.returnedStale = true;
+        }
+        return staleVal ? p.__staleWhileFetching : p.__returned = p;
+      }
+    }
+    async forceFetch(k, fetchOptions = {}) {
+      const v = await this.fetch(k, fetchOptions);
+      if (v === void 0)
+        throw new Error("fetch() returned undefined");
+      return v;
+    }
+    memo(k, memoOptions = {}) {
+      const memoMethod = __privateGet(this, _memoMethod);
+      if (!memoMethod) {
+        throw new Error("no memoMethod provided to constructor");
+      }
+      const { context, forceRefresh, ...options } = memoOptions;
+      const v = this.get(k, options);
+      if (!forceRefresh && v !== void 0)
+        return v;
+      const vv = memoMethod(k, v, {
+        options,
+        context
+      });
+      this.set(k, vv, options);
+      return vv;
+    }
+    /**
+     * Return a value from the cache. Will update the recency of the cache
+     * entry found.
+     *
+     * If the key is not found, get() will return `undefined`.
+     */
+    get(k, getOptions = {}) {
+      const { allowStale = this.allowStale, updateAgeOnGet = this.updateAgeOnGet, noDeleteOnStaleGet = this.noDeleteOnStaleGet, status } = getOptions;
+      const index = __privateGet(this, _keyMap).get(k);
+      if (index !== void 0) {
+        const value = __privateGet(this, _valList)[index];
+        const fetching = __privateMethod(this, _LRUCache_instances, isBackgroundFetch_fn).call(this, value);
+        if (status)
+          __privateGet(this, _statusTTL).call(this, status, index);
+        if (__privateGet(this, _isStale).call(this, index)) {
+          if (status)
+            status.get = "stale";
+          if (!fetching) {
+            if (!noDeleteOnStaleGet) {
+              __privateMethod(this, _LRUCache_instances, delete_fn).call(this, k, "expire");
+            }
+            if (status && allowStale)
+              status.returnedStale = true;
+            return allowStale ? value : void 0;
+          } else {
+            if (status && allowStale && value.__staleWhileFetching !== void 0) {
+              status.returnedStale = true;
+            }
+            return allowStale ? value.__staleWhileFetching : void 0;
+          }
+        } else {
+          if (status)
+            status.get = "hit";
+          if (fetching) {
+            return value.__staleWhileFetching;
+          }
+          __privateMethod(this, _LRUCache_instances, moveToTail_fn).call(this, index);
+          if (updateAgeOnGet) {
+            __privateGet(this, _updateItemAge).call(this, index);
+          }
+          return value;
+        }
+      } else if (status) {
+        status.get = "miss";
+      }
+    }
+    /**
+     * Deletes a key out of the cache.
+     *
+     * Returns true if the key was deleted, false otherwise.
+     */
+    delete(k) {
+      return __privateMethod(this, _LRUCache_instances, delete_fn).call(this, k, "delete");
+    }
+    /**
+     * Clear the cache entirely, throwing away all values.
+     */
+    clear() {
+      return __privateMethod(this, _LRUCache_instances, clear_fn).call(this, "delete");
+    }
+  };
+  _max = new WeakMap();
+  _maxSize = new WeakMap();
+  _dispose = new WeakMap();
+  _onInsert = new WeakMap();
+  _disposeAfter = new WeakMap();
+  _fetchMethod = new WeakMap();
+  _memoMethod = new WeakMap();
+  _perf = new WeakMap();
+  _size = new WeakMap();
+  _calculatedSize = new WeakMap();
+  _keyMap = new WeakMap();
+  _keyList = new WeakMap();
+  _valList = new WeakMap();
+  _next = new WeakMap();
+  _prev = new WeakMap();
+  _head = new WeakMap();
+  _tail = new WeakMap();
+  _free = new WeakMap();
+  _disposed = new WeakMap();
+  _sizes = new WeakMap();
+  _starts = new WeakMap();
+  _ttls = new WeakMap();
+  _autopurgeTimers = new WeakMap();
+  _hasDispose = new WeakMap();
+  _hasFetchMethod = new WeakMap();
+  _hasDisposeAfter = new WeakMap();
+  _hasOnInsert = new WeakMap();
+  _LRUCache_instances = new WeakSet();
+  initializeTTLTracking_fn = function() {
+    const ttls = new ZeroArray(__privateGet(this, _max));
+    const starts = new ZeroArray(__privateGet(this, _max));
+    __privateSet(this, _ttls, ttls);
+    __privateSet(this, _starts, starts);
+    const purgeTimers = this.ttlAutopurge ? new Array(__privateGet(this, _max)) : void 0;
+    __privateSet(this, _autopurgeTimers, purgeTimers);
+    __privateSet(this, _setItemTTL, (index, ttl, start = __privateGet(this, _perf).now()) => {
+      starts[index] = ttl !== 0 ? start : 0;
+      ttls[index] = ttl;
+      if (purgeTimers?.[index]) {
+        clearTimeout(purgeTimers[index]);
+        purgeTimers[index] = void 0;
+      }
+      if (ttl !== 0 && purgeTimers) {
+        const t = setTimeout(() => {
+          if (__privateGet(this, _isStale).call(this, index)) {
+            __privateMethod(this, _LRUCache_instances, delete_fn).call(this, __privateGet(this, _keyList)[index], "expire");
+          }
+        }, ttl + 1);
+        if (t.unref) {
+          t.unref();
+        }
+        purgeTimers[index] = t;
+      }
+    });
+    __privateSet(this, _updateItemAge, (index) => {
+      starts[index] = ttls[index] !== 0 ? __privateGet(this, _perf).now() : 0;
+    });
+    __privateSet(this, _statusTTL, (status, index) => {
+      if (ttls[index]) {
+        const ttl = ttls[index];
+        const start = starts[index];
+        if (!ttl || !start)
+          return;
+        status.ttl = ttl;
+        status.start = start;
+        status.now = cachedNow || getNow();
+        const age = status.now - start;
+        status.remainingTTL = ttl - age;
+      }
+    });
+    let cachedNow = 0;
+    const getNow = () => {
+      const n = __privateGet(this, _perf).now();
+      if (this.ttlResolution > 0) {
+        cachedNow = n;
+        const t = setTimeout(() => cachedNow = 0, this.ttlResolution);
+        if (t.unref) {
+          t.unref();
+        }
+      }
+      return n;
+    };
+    this.getRemainingTTL = (key) => {
+      const index = __privateGet(this, _keyMap).get(key);
+      if (index === void 0) {
+        return 0;
+      }
+      const ttl = ttls[index];
+      const start = starts[index];
+      if (!ttl || !start) {
+        return Infinity;
+      }
+      const age = (cachedNow || getNow()) - start;
+      return ttl - age;
+    };
+    __privateSet(this, _isStale, (index) => {
+      const s = starts[index];
+      const t = ttls[index];
+      return !!t && !!s && (cachedNow || getNow()) - s > t;
+    });
+  };
+  _updateItemAge = new WeakMap();
+  _statusTTL = new WeakMap();
+  _setItemTTL = new WeakMap();
+  _isStale = new WeakMap();
+  initializeSizeTracking_fn = function() {
+    const sizes = new ZeroArray(__privateGet(this, _max));
+    __privateSet(this, _calculatedSize, 0);
+    __privateSet(this, _sizes, sizes);
+    __privateSet(this, _removeItemSize, (index) => {
+      __privateSet(this, _calculatedSize, __privateGet(this, _calculatedSize) - sizes[index]);
+      sizes[index] = 0;
+    });
+    __privateSet(this, _requireSize, (k, v, size, sizeCalculation) => {
+      if (__privateMethod(this, _LRUCache_instances, isBackgroundFetch_fn).call(this, v)) {
+        return 0;
+      }
+      if (!isPosInt(size)) {
+        if (sizeCalculation) {
+          if (typeof sizeCalculation !== "function") {
+            throw new TypeError("sizeCalculation must be a function");
+          }
+          size = sizeCalculation(v, k);
+          if (!isPosInt(size)) {
+            throw new TypeError("sizeCalculation return invalid (expect positive integer)");
+          }
+        } else {
+          throw new TypeError("invalid size value (must be positive integer). When maxSize or maxEntrySize is used, sizeCalculation or size must be set.");
+        }
+      }
+      return size;
+    });
+    __privateSet(this, _addItemSize, (index, size, status) => {
+      sizes[index] = size;
+      if (__privateGet(this, _maxSize)) {
+        const maxSize = __privateGet(this, _maxSize) - sizes[index];
+        while (__privateGet(this, _calculatedSize) > maxSize) {
+          __privateMethod(this, _LRUCache_instances, evict_fn).call(this, true);
+        }
+      }
+      __privateSet(this, _calculatedSize, __privateGet(this, _calculatedSize) + sizes[index]);
+      if (status) {
+        status.entrySize = size;
+        status.totalCalculatedSize = __privateGet(this, _calculatedSize);
+      }
+    });
+  };
+  _removeItemSize = new WeakMap();
+  _addItemSize = new WeakMap();
+  _requireSize = new WeakMap();
+  indexes_fn = function* ({ allowStale = this.allowStale } = {}) {
+    if (__privateGet(this, _size)) {
+      for (let i = __privateGet(this, _tail); true; ) {
+        if (!__privateMethod(this, _LRUCache_instances, isValidIndex_fn).call(this, i)) {
+          break;
+        }
+        if (allowStale || !__privateGet(this, _isStale).call(this, i)) {
+          yield i;
+        }
+        if (i === __privateGet(this, _head)) {
+          break;
+        } else {
+          i = __privateGet(this, _prev)[i];
+        }
+      }
+    }
+  };
+  rindexes_fn = function* ({ allowStale = this.allowStale } = {}) {
+    if (__privateGet(this, _size)) {
+      for (let i = __privateGet(this, _head); true; ) {
+        if (!__privateMethod(this, _LRUCache_instances, isValidIndex_fn).call(this, i)) {
+          break;
+        }
+        if (allowStale || !__privateGet(this, _isStale).call(this, i)) {
+          yield i;
+        }
+        if (i === __privateGet(this, _tail)) {
+          break;
+        } else {
+          i = __privateGet(this, _next)[i];
+        }
+      }
+    }
+  };
+  isValidIndex_fn = function(index) {
+    return index !== void 0 && __privateGet(this, _keyMap).get(__privateGet(this, _keyList)[index]) === index;
+  };
+  evict_fn = function(free) {
+    var _a2;
+    const head2 = __privateGet(this, _head);
+    const k = __privateGet(this, _keyList)[head2];
+    const v = __privateGet(this, _valList)[head2];
+    if (__privateGet(this, _hasFetchMethod) && __privateMethod(this, _LRUCache_instances, isBackgroundFetch_fn).call(this, v)) {
+      v.__abortController.abort(new Error("evicted"));
+    } else if (__privateGet(this, _hasDispose) || __privateGet(this, _hasDisposeAfter)) {
+      if (__privateGet(this, _hasDispose)) {
+        (_a2 = __privateGet(this, _dispose)) == null ? void 0 : _a2.call(this, v, k, "evict");
+      }
+      if (__privateGet(this, _hasDisposeAfter)) {
+        __privateGet(this, _disposed)?.push([v, k, "evict"]);
+      }
+    }
+    __privateGet(this, _removeItemSize).call(this, head2);
+    if (__privateGet(this, _autopurgeTimers)?.[head2]) {
+      clearTimeout(__privateGet(this, _autopurgeTimers)[head2]);
+      __privateGet(this, _autopurgeTimers)[head2] = void 0;
+    }
+    if (free) {
+      __privateGet(this, _keyList)[head2] = void 0;
+      __privateGet(this, _valList)[head2] = void 0;
+      __privateGet(this, _free).push(head2);
+    }
+    if (__privateGet(this, _size) === 1) {
+      __privateSet(this, _head, __privateSet(this, _tail, 0));
+      __privateGet(this, _free).length = 0;
+    } else {
+      __privateSet(this, _head, __privateGet(this, _next)[head2]);
+    }
+    __privateGet(this, _keyMap).delete(k);
+    __privateWrapper(this, _size)._--;
+    return head2;
+  };
+  backgroundFetch_fn = function(k, index, options, context) {
+    const v = index === void 0 ? void 0 : __privateGet(this, _valList)[index];
+    if (__privateMethod(this, _LRUCache_instances, isBackgroundFetch_fn).call(this, v)) {
+      return v;
+    }
+    const ac = new AC();
+    const { signal } = options;
+    signal?.addEventListener("abort", () => ac.abort(signal.reason), {
+      signal: ac.signal
+    });
+    const fetchOpts = {
+      signal: ac.signal,
+      options,
+      context
+    };
+    const cb = (v2, updateCache = false) => {
+      const { aborted } = ac.signal;
+      const ignoreAbort = options.ignoreFetchAbort && v2 !== void 0;
+      if (options.status) {
+        if (aborted && !updateCache) {
+          options.status.fetchAborted = true;
+          options.status.fetchError = ac.signal.reason;
+          if (ignoreAbort)
+            options.status.fetchAbortIgnored = true;
+        } else {
+          options.status.fetchResolved = true;
+        }
+      }
+      if (aborted && !ignoreAbort && !updateCache) {
+        return fetchFail(ac.signal.reason);
+      }
+      const bf2 = p;
+      const vl = __privateGet(this, _valList)[index];
+      if (vl === p || ignoreAbort && updateCache && vl === void 0) {
+        if (v2 === void 0) {
+          if (bf2.__staleWhileFetching !== void 0) {
+            __privateGet(this, _valList)[index] = bf2.__staleWhileFetching;
+          } else {
+            __privateMethod(this, _LRUCache_instances, delete_fn).call(this, k, "fetch");
+          }
+        } else {
+          if (options.status)
+            options.status.fetchUpdated = true;
+          this.set(k, v2, fetchOpts.options);
+        }
+      }
+      return v2;
+    };
+    const eb = (er) => {
+      if (options.status) {
+        options.status.fetchRejected = true;
+        options.status.fetchError = er;
+      }
+      return fetchFail(er);
+    };
+    const fetchFail = (er) => {
+      const { aborted } = ac.signal;
+      const allowStaleAborted = aborted && options.allowStaleOnFetchAbort;
+      const allowStale = allowStaleAborted || options.allowStaleOnFetchRejection;
+      const noDelete = allowStale || options.noDeleteOnFetchRejection;
+      const bf2 = p;
+      if (__privateGet(this, _valList)[index] === p) {
+        const del = !noDelete || bf2.__staleWhileFetching === void 0;
+        if (del) {
+          __privateMethod(this, _LRUCache_instances, delete_fn).call(this, k, "fetch");
+        } else if (!allowStaleAborted) {
+          __privateGet(this, _valList)[index] = bf2.__staleWhileFetching;
+        }
+      }
+      if (allowStale) {
+        if (options.status && bf2.__staleWhileFetching !== void 0) {
+          options.status.returnedStale = true;
+        }
+        return bf2.__staleWhileFetching;
+      } else if (bf2.__returned === bf2) {
+        throw er;
+      }
+    };
+    const pcall = (res, rej) => {
+      var _a2;
+      const fmp = (_a2 = __privateGet(this, _fetchMethod)) == null ? void 0 : _a2.call(this, k, v, fetchOpts);
+      if (fmp && fmp instanceof Promise) {
+        fmp.then((v2) => res(v2 === void 0 ? void 0 : v2), rej);
+      }
+      ac.signal.addEventListener("abort", () => {
+        if (!options.ignoreFetchAbort || options.allowStaleOnFetchAbort) {
+          res(void 0);
+          if (options.allowStaleOnFetchAbort) {
+            res = (v2) => cb(v2, true);
+          }
+        }
+      });
+    };
+    if (options.status)
+      options.status.fetchDispatched = true;
+    const p = new Promise(pcall).then(cb, eb);
+    const bf = Object.assign(p, {
+      __abortController: ac,
+      __staleWhileFetching: v,
+      __returned: void 0
+    });
+    if (index === void 0) {
+      this.set(k, bf, { ...fetchOpts.options, status: void 0 });
+      index = __privateGet(this, _keyMap).get(k);
+    } else {
+      __privateGet(this, _valList)[index] = bf;
+    }
+    return bf;
+  };
+  isBackgroundFetch_fn = function(p) {
+    if (!__privateGet(this, _hasFetchMethod))
+      return false;
+    const b = p;
+    return !!b && b instanceof Promise && b.hasOwnProperty("__staleWhileFetching") && b.__abortController instanceof AC;
+  };
+  connect_fn = function(p, n) {
+    __privateGet(this, _prev)[n] = p;
+    __privateGet(this, _next)[p] = n;
+  };
+  moveToTail_fn = function(index) {
+    if (index !== __privateGet(this, _tail)) {
+      if (index === __privateGet(this, _head)) {
+        __privateSet(this, _head, __privateGet(this, _next)[index]);
+      } else {
+        __privateMethod(this, _LRUCache_instances, connect_fn).call(this, __privateGet(this, _prev)[index], __privateGet(this, _next)[index]);
+      }
+      __privateMethod(this, _LRUCache_instances, connect_fn).call(this, __privateGet(this, _tail), index);
+      __privateSet(this, _tail, index);
+    }
+  };
+  delete_fn = function(k, reason) {
+    var _a2, _b2;
+    let deleted = false;
+    if (__privateGet(this, _size) !== 0) {
+      const index = __privateGet(this, _keyMap).get(k);
+      if (index !== void 0) {
+        if (__privateGet(this, _autopurgeTimers)?.[index]) {
+          clearTimeout(__privateGet(this, _autopurgeTimers)?.[index]);
+          __privateGet(this, _autopurgeTimers)[index] = void 0;
+        }
+        deleted = true;
+        if (__privateGet(this, _size) === 1) {
+          __privateMethod(this, _LRUCache_instances, clear_fn).call(this, reason);
+        } else {
+          __privateGet(this, _removeItemSize).call(this, index);
+          const v = __privateGet(this, _valList)[index];
+          if (__privateMethod(this, _LRUCache_instances, isBackgroundFetch_fn).call(this, v)) {
+            v.__abortController.abort(new Error("deleted"));
+          } else if (__privateGet(this, _hasDispose) || __privateGet(this, _hasDisposeAfter)) {
+            if (__privateGet(this, _hasDispose)) {
+              (_a2 = __privateGet(this, _dispose)) == null ? void 0 : _a2.call(this, v, k, reason);
+            }
+            if (__privateGet(this, _hasDisposeAfter)) {
+              __privateGet(this, _disposed)?.push([v, k, reason]);
+            }
+          }
+          __privateGet(this, _keyMap).delete(k);
+          __privateGet(this, _keyList)[index] = void 0;
+          __privateGet(this, _valList)[index] = void 0;
+          if (index === __privateGet(this, _tail)) {
+            __privateSet(this, _tail, __privateGet(this, _prev)[index]);
+          } else if (index === __privateGet(this, _head)) {
+            __privateSet(this, _head, __privateGet(this, _next)[index]);
+          } else {
+            const pi = __privateGet(this, _prev)[index];
+            __privateGet(this, _next)[pi] = __privateGet(this, _next)[index];
+            const ni = __privateGet(this, _next)[index];
+            __privateGet(this, _prev)[ni] = __privateGet(this, _prev)[index];
+          }
+          __privateWrapper(this, _size)._--;
+          __privateGet(this, _free).push(index);
+        }
+      }
+    }
+    if (__privateGet(this, _hasDisposeAfter) && __privateGet(this, _disposed)?.length) {
+      const dt = __privateGet(this, _disposed);
+      let task;
+      while (task = dt?.shift()) {
+        (_b2 = __privateGet(this, _disposeAfter)) == null ? void 0 : _b2.call(this, ...task);
+      }
+    }
+    return deleted;
+  };
+  clear_fn = function(reason) {
+    var _a2, _b2;
+    for (const index of __privateMethod(this, _LRUCache_instances, rindexes_fn).call(this, { allowStale: true })) {
+      const v = __privateGet(this, _valList)[index];
+      if (__privateMethod(this, _LRUCache_instances, isBackgroundFetch_fn).call(this, v)) {
+        v.__abortController.abort(new Error("deleted"));
+      } else {
+        const k = __privateGet(this, _keyList)[index];
+        if (__privateGet(this, _hasDispose)) {
+          (_a2 = __privateGet(this, _dispose)) == null ? void 0 : _a2.call(this, v, k, reason);
+        }
+        if (__privateGet(this, _hasDisposeAfter)) {
+          __privateGet(this, _disposed)?.push([v, k, reason]);
+        }
+      }
+    }
+    __privateGet(this, _keyMap).clear();
+    __privateGet(this, _valList).fill(void 0);
+    __privateGet(this, _keyList).fill(void 0);
+    if (__privateGet(this, _ttls) && __privateGet(this, _starts)) {
+      __privateGet(this, _ttls).fill(0);
+      __privateGet(this, _starts).fill(0);
+      for (const t of __privateGet(this, _autopurgeTimers) ?? []) {
+        if (t !== void 0)
+          clearTimeout(t);
+      }
+      __privateGet(this, _autopurgeTimers)?.fill(void 0);
+    }
+    if (__privateGet(this, _sizes)) {
+      __privateGet(this, _sizes).fill(0);
+    }
+    __privateSet(this, _head, 0);
+    __privateSet(this, _tail, 0);
+    __privateGet(this, _free).length = 0;
+    __privateSet(this, _calculatedSize, 0);
+    __privateSet(this, _size, 0);
+    if (__privateGet(this, _hasDisposeAfter) && __privateGet(this, _disposed)) {
+      const dt = __privateGet(this, _disposed);
+      let task;
+      while (task = dt?.shift()) {
+        (_b2 = __privateGet(this, _disposeAfter)) == null ? void 0 : _b2.call(this, ...task);
+      }
+    }
+  };
+  var LRUCache = _LRUCache;
+
+  // js/changeset-service.js
   var STORAGE_KEY = "smtw-changesets";
   var MAX_SIZE = 500;
   var PERSIST_INTERVAL_MS = 3e4;
@@ -5716,22 +6501,22 @@
       try {
         const stored = localStorage.getItem(STORAGE_KEY);
         if (stored) {
-          const cache = (0, import_lru_cache.default)(MAX_SIZE);
+          const cache = new LRUCache({ max: MAX_SIZE });
           cache.load(JSON.parse(stored));
-          console.log(`[ChangesetService] Loaded ${cache.length} entries from cache`);
+          console.log(`[ChangesetService] Loaded ${cache.size} entries from cache`);
           return cache;
         }
       } catch (err) {
         console.warn("[ChangesetService] Failed to load cache:", err.message);
       }
-      return (0, import_lru_cache.default)(MAX_SIZE);
+      return new LRUCache({ max: MAX_SIZE });
     }
     saveToStorage() {
       const doSave = () => {
         try {
           const data = JSON.stringify(this.cache.dump());
           localStorage.setItem(STORAGE_KEY, data);
-          console.log(`[ChangesetService] Saved ${this.cache.length} entries to cache`);
+          console.log(`[ChangesetService] Saved ${this.cache.size} entries to cache`);
         } catch (err) {
           console.warn("[ChangesetService] Failed to save cache:", err.message);
         }
@@ -5808,7 +6593,6 @@
   // js/geocode-service.js
   init_define_process_env();
   init_buffer_global();
-  var import_lru_cache2 = __toESM(require_lru_cache(), 1);
   var STORAGE_KEY2 = "smtw-geocodes";
   var MAX_SIZE2 = 2e3;
   var PERSIST_INTERVAL_MS2 = 3e4;
@@ -5823,22 +6607,22 @@
       try {
         const stored = localStorage.getItem(STORAGE_KEY2);
         if (stored) {
-          const cache = (0, import_lru_cache2.default)(MAX_SIZE2);
+          const cache = new LRUCache({ max: MAX_SIZE2 });
           cache.load(JSON.parse(stored));
-          console.log(`[GeocodeService] Loaded ${cache.length} entries from cache`);
+          console.log(`[GeocodeService] Loaded ${cache.size} entries from cache`);
           return cache;
         }
       } catch (err) {
         console.warn("[GeocodeService] Failed to load cache:", err.message);
       }
-      return (0, import_lru_cache2.default)(MAX_SIZE2);
+      return new LRUCache({ max: MAX_SIZE2 });
     }
     saveToStorage() {
       const doSave = () => {
         try {
           const data = JSON.stringify(this.cache.dump());
           localStorage.setItem(STORAGE_KEY2, data);
-          console.log(`[GeocodeService] Saved ${this.cache.length} entries to cache`);
+          console.log(`[GeocodeService] Saved ${this.cache.size} entries to cache`);
         } catch (err) {
           console.warn("[GeocodeService] Failed to save cache:", err.message);
         }
@@ -5871,7 +6655,7 @@
      * Find a cached geocode within threshold distance
      */
     findNearbyCache(lat, lon) {
-      const closeByKey = this.cache.keys().find((key) => {
+      const closeByKey = [...this.cache.keys()].find((key) => {
         const [cachedLat, cachedLon] = key.split(",").map(parseFloat);
         return distanceBetween(lat, lon, cachedLat, cachedLon) < CLOSE_THRESHOLD_METERS;
       });
@@ -5987,6 +6771,43 @@
     function getChangesetId(item) {
       return (item.neu || item.old).changeset;
     }
+    function getItemCenter(item) {
+      const mapElement = item.neu || item.old;
+      if (mapElement.type === "way" && mapElement.bounds) {
+        const [south, west, north, east] = mapElement.bounds;
+        return { lat: (south + north) / 2, lng: (west + east) / 2 };
+      } else if (mapElement.lat !== void 0 && mapElement.lon !== void 0) {
+        return { lat: mapElement.lat, lng: mapElement.lon };
+      }
+      return null;
+    }
+    function getDistance(p1, p2) {
+      const R = 6371e3;
+      const lat1 = p1.lat * Math.PI / 180;
+      const lat2 = p2.lat * Math.PI / 180;
+      const dLat = (p2.lat - p1.lat) * Math.PI / 180;
+      const dLng = (p2.lng - p1.lng) * Math.PI / 180;
+      const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return R * c;
+    }
+    function findBatchItems(firstItem, firstCenter) {
+      const changesetId = getChangesetId(firstItem);
+      const batch = [firstItem];
+      const maxBatchSize = 15;
+      const maxDistance = 1e3;
+      for (let i = queue.length - 1; i >= 0 && batch.length < maxBatchSize; i--) {
+        const item = queue[i];
+        if (getChangesetId(item) !== changesetId) continue;
+        const center = getItemCenter(item);
+        if (!center) continue;
+        if (getDistance(firstCenter, center) <= maxDistance) {
+          batch.push(item);
+          queue.splice(i, 1);
+        }
+      }
+      return batch;
+    }
     function prefetchUpcoming() {
       const toPrefetch = [];
       const seenChangesets = /* @__PURE__ */ new Set();
@@ -6023,36 +6844,72 @@
       if (queue.length) {
         const item = queue.pop();
         const changesetId = getChangesetId(item);
+        const itemCenter = getItemCenter(item);
         ui.updateQueueSize(queue.length);
-        const prefetched = prefetchMap.get(changesetId);
-        if (prefetched) {
-          prefetchMap.delete(changesetId);
-          console.log(`[Prefetch] Using prefetched result for changeset ${changesetId}`);
-          prefetched.then(({ change, skip }) => {
-            if (skip) {
-              controller();
+        const MIN_BATCH_SIZE = 5;
+        let batchItems = [item];
+        if (context.multi && itemCenter && queue.length >= MIN_BATCH_SIZE - 1) {
+          batchItems = findBatchItems(item, itemCenter);
+        }
+        if (batchItems.length >= MIN_BATCH_SIZE) {
+          console.log(`[Batch] Processing ${batchItems.length} nearby changes from changeset ${changesetId}`);
+          ui.updateQueueSize(queue.length);
+          const enhancePromises = batchItems.map(async (batchItem) => {
+            const change = new Change(context, batchItem);
+            const isRelevant = await change.isRelevant();
+            if (!isRelevant) return null;
+            try {
+              await change.enhance();
+              return change;
+            } catch (err) {
+              console.warn("Skipping batch item due to enhance failure:", err.message);
+              return null;
+            }
+          });
+          Promise.all(enhancePromises).then((changes) => {
+            const validChanges = changes.filter((c) => c !== null);
+            if (validChanges.length >= MIN_BATCH_SIZE) {
+              ui.update(validChanges[0]);
+              maps.drawMapElementBatch(validChanges, controller);
+            } else if (validChanges.length > 0) {
+              ui.update(validChanges[0]);
+              maps.drawMapElement(validChanges[0], controller);
             } else {
-              ui.update(change);
-              maps.drawMapElement(change, controller);
+              controller();
             }
             prefetchUpcoming();
           });
         } else {
-          const change = new Change(context, item);
-          change.isRelevant().then((isRelevant) => {
-            if (isRelevant) {
-              change.enhance().then(() => {
+          const prefetched = prefetchMap.get(changesetId);
+          if (prefetched) {
+            prefetchMap.delete(changesetId);
+            console.log(`[Prefetch] Using prefetched result for changeset ${changesetId}`);
+            prefetched.then(({ change, skip }) => {
+              if (skip) {
+                controller();
+              } else {
                 ui.update(change);
                 maps.drawMapElement(change, controller);
-                prefetchUpcoming();
-              }).catch((err) => {
-                console.warn("Skipping change due to enhance failure:", err.message);
+              }
+              prefetchUpcoming();
+            });
+          } else {
+            const change = new Change(context, item);
+            change.isRelevant().then((isRelevant) => {
+              if (isRelevant) {
+                change.enhance().then(() => {
+                  ui.update(change);
+                  maps.drawMapElement(change, controller);
+                  prefetchUpcoming();
+                }).catch((err) => {
+                  console.warn("Skipping change due to enhance failure:", err.message);
+                  controller();
+                });
+              } else {
                 controller();
-              });
-            } else {
-              controller();
-            }
-          });
+              }
+            });
+          }
         }
       } else {
         setTimeout(controller, context.runTime);
@@ -6067,6 +6924,7 @@
     const context = Object.assign({}, config, obj);
     context.bounds = context.bounds.split(",");
     context.runTime = 1e3 * context.runTime;
+    context.multi = context.multi === "true" || context.multi === true;
     context.debug = context.debug === "true" || context.debug === true;
     context.changesetService = new ChangesetService();
     context.changesetService.startPersisting();
