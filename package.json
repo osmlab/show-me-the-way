@@ -7,8 +7,8 @@
   "scripts": {
     "lint": "eslint js/*.js",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "esbuild js/site.js --bundle --outfile=js/bundle.js --format=iife --target=es2020 --alias:util=./js/shims/util.js --alias:stream=./js/shims/stream.js --define:process.env={} --inject:./js/shims/buffer-global.js",
-    "dev": "concurrently \"npm run build -- --watch\" \"serve\""
+    "build": "esbuild js/site.js --bundle --outfile=js/bundle.js --format=iife --target=es2020 --alias:util=./js/shims/util.js --alias:stream=./js/shims/stream.js --define:process.env={} --inject:./js/shims/buffer-global.js --log-level=info",
+    "dev": "concurrently --names \"esbuild,serve\" -c \"cyan,yellow\" \"npm run build -- --watch\" \"serve\""
   },
   "repository": "",
   "author": "",
