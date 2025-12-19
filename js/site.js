@@ -112,6 +112,62 @@ function init(windowLocationObj) {
         return (item.neu || item.old).changeset;
     }
 
+    // Get approximate center coordinates from raw queue item
+    function getItemCenter(item) {
+        const mapElement = item.neu || item.old;
+        if (mapElement.type === 'way' && mapElement.bounds) {
+            // Way with bounds - use center of bounds
+            const [south, west, north, east] = mapElement.bounds;
+            return { lat: (south + north) / 2, lng: (west + east) / 2 };
+        } else if (mapElement.lat !== undefined && mapElement.lon !== undefined) {
+            // Node with coordinates
+            return { lat: mapElement.lat, lng: mapElement.lon };
+        }
+        return null;
+    }
+
+    // Calculate distance between two points in meters (Haversine)
+    function getDistance(p1, p2) {
+        const R = 6371000;
+        const lat1 = p1.lat * Math.PI / 180;
+        const lat2 = p2.lat * Math.PI / 180;
+        const dLat = (p2.lat - p1.lat) * Math.PI / 180;
+        const dLng = (p2.lng - p1.lng) * Math.PI / 180;
+
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                  Math.cos(lat1) * Math.cos(lat2) *
+                  Math.sin(dLng/2) * Math.sin(dLng/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+        return R * c;
+    }
+
+    // Find nearby items from the same changeset for batch drawing
+    // Returns array of items to batch (including the first item)
+    function findBatchItems(firstItem, firstCenter) {
+        const changesetId = getChangesetId(firstItem);
+        const batch = [firstItem];
+        const maxBatchSize = 15;
+        const maxDistance = 1000; // 1km
+
+        // Look through queue from end (where we pop from)
+        for (let i = queue.length - 1; i >= 0 && batch.length < maxBatchSize; i--) {
+            const item = queue[i];
+            if (getChangesetId(item) !== changesetId) continue;
+
+            const center = getItemCenter(item);
+            if (!center) continue;
+
+            // Check if within 1km of the first item
+            if (getDistance(firstCenter, center) <= maxDistance) {
+                batch.push(item);
+                queue.splice(i, 1); // Remove from queue
+            }
+        }
+
+        return batch;
+    }
+
     // Prefetch first item of upcoming changesets
     function prefetchUpcoming() {
         const toPrefetch = [];
@@ -158,43 +214,84 @@ function init(windowLocationObj) {
         if (queue.length) {
             const item = queue.pop();
             const changesetId = getChangesetId(item);
+            const itemCenter = getItemCenter(item);
             ui.updateQueueSize(queue.length);
 
-            // Check if we have a prefetched result for this changeset
-            const prefetched = prefetchMap.get(changesetId);
-            if (prefetched) {
-                prefetchMap.delete(changesetId);
-                console.log(`[Prefetch] Using prefetched result for changeset ${changesetId}`);
+            // Check if we can batch with nearby items from same changeset
+            const MIN_BATCH_SIZE = 5;
+            let batchItems = [item];
 
-                prefetched.then(({ change, skip }) => {
-                    if (skip) {
-                        controller();
-                    } else {
-                        ui.update(change);
-                        maps.drawMapElement(change, controller);
+            if (context.multi && itemCenter && queue.length >= MIN_BATCH_SIZE - 1) {
+                batchItems = findBatchItems(item, itemCenter);
+            }
+
+            if (batchItems.length >= MIN_BATCH_SIZE) {
+                // Batch mode: enhance all items and draw simultaneously
+                console.log(`[Batch] Processing ${batchItems.length} nearby changes from changeset ${changesetId}`);
+                ui.updateQueueSize(queue.length);
+
+                const enhancePromises = batchItems.map(async (batchItem) => {
+                    const change = new Change(context, batchItem);
+                    const isRelevant = await change.isRelevant();
+                    if (!isRelevant) return null;
+                    try {
+                        await change.enhance();
+                        return change;
+                    } catch (err) {
+                        console.warn('Skipping batch item due to enhance failure:', err.message);
+                        return null;
                     }
-                    // Trigger prefetch for next batch
+                });
+
+                Promise.all(enhancePromises).then((changes) => {
+                    const validChanges = changes.filter((c) => c !== null);
+                    if (validChanges.length >= MIN_BATCH_SIZE) {
+                        // Show info for first change in batch
+                        ui.update(validChanges[0]);
+                        maps.drawMapElementBatch(validChanges, controller);
+                    } else if (validChanges.length > 0) {
+                        // Not enough valid changes for batch, draw individually
+                        ui.update(validChanges[0]);
+                        maps.drawMapElement(validChanges[0], controller);
+                    } else {
+                        controller();
+                    }
                     prefetchUpcoming();
                 });
             } else {
-                // No prefetch available, do it synchronously
-                const change = new Change(context, item);
+                // Single item mode (original behavior)
+                const prefetched = prefetchMap.get(changesetId);
+                if (prefetched) {
+                    prefetchMap.delete(changesetId);
+                    console.log(`[Prefetch] Using prefetched result for changeset ${changesetId}`);
 
-                change.isRelevant().then((isRelevant) => {
-                    if (isRelevant) {
-                        change.enhance().then(() => {
+                    prefetched.then(({ change, skip }) => {
+                        if (skip) {
+                            controller();
+                        } else {
                             ui.update(change);
                             maps.drawMapElement(change, controller);
-                            // Trigger prefetch for next batch
-                            prefetchUpcoming();
-                        }).catch((err) => {
-                            console.warn('Skipping change due to enhance failure:', err.message);
+                        }
+                        prefetchUpcoming();
+                    });
+                } else {
+                    const change = new Change(context, item);
+
+                    change.isRelevant().then((isRelevant) => {
+                        if (isRelevant) {
+                            change.enhance().then(() => {
+                                ui.update(change);
+                                maps.drawMapElement(change, controller);
+                                prefetchUpcoming();
+                            }).catch((err) => {
+                                console.warn('Skipping change due to enhance failure:', err.message);
+                                controller();
+                            });
+                        } else {
                             controller();
-                        });
-                    } else {
-                        controller();
-                    }
-                });
+                        }
+                    });
+                }
             }
         } else {
             setTimeout(controller, context.runTime);
@@ -213,6 +310,7 @@ function setContext(obj) {
     const context = Object.assign({}, config, obj);
     context.bounds = context.bounds.split(',');
     context.runTime = 1000 * context.runTime;
+    context.multi = context.multi === 'true' || context.multi === true;
     context.debug = context.debug === 'true' || context.debug === true;
 
     // Initialize services (they handle their own caching and persistence)

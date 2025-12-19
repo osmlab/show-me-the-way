@@ -37,6 +37,13 @@ Build a bounding box URL using this page: https://osmlab.github.io/show-me-the-w
     - https://osmlab.github.io/show-me-the-way/#runTime=5
     - The default runTime is 2.
 
+### Disable multi-edit playback
+
+- multi={true|false}
+- When enabled (default), nearby edits from the same changeset are drawn simultaneously.
+- Set to false to show one edit at a time.
+    - https://osmlab.github.io/show-me-the-way/#multi=false
+
 You can combine the parameters using querystring notation:
 
 - https://osmlab.github.io/show-me-the-way/#comment=missingmaps&bounds=32.55,-15.82,71.65,44.65&runTime=5
