@@ -1,10 +1,11 @@
 import { config } from './config';
+import { getRandomCity } from './cities';
 
 class Maps {
     constructor(context, bbox) {
         this.context = context;
         const filteredBbox = context.bounds != config.bounds;
-        const defaultCenter = [-0.09, 51.505];
+        const defaultCenter = getRandomCity().center;
 
         // Check if running locally
         const isLocal = window.location.hostname === 'localhost' ||
