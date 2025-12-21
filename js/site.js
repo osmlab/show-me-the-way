@@ -83,16 +83,11 @@ function init(windowLocationObj) {
             queue = filterAndGroup(cachedDiffs);
             console.log(`Loaded ${queue.length} changes from cached diffs`);
         }
-
-        // Start the diff stream
-        diffService.start((data) => {
-            queue = filterAndGroup(data);
-        }, requestingBbox);
     }).catch((err) => {
         console.warn('[DiffService] Init failed, starting without cache:', err);
-        // Start streaming anyway without cached data
+    }).finally(() => {
         diffService.start((data) => {
-            queue = filterAndGroup(data);
+            queue.unshift(...filterAndGroup(data));
         }, requestingBbox);
     });
 
