@@ -8,7 +8,8 @@ import { config } from './config';
 import {
     makeBbox,
     makeBboxString,
-    isBboxSizeAcceptable
+    isBboxSizeAcceptable,
+    distanceBetween
 } from './utils';
 
 import {
@@ -76,6 +77,14 @@ function init(windowLocationObj) {
     const requestingBbox = (context.bounds != config.bounds) && isBboxSizeAcceptable(bbox)
         ? makeBboxString(makeBbox(context.bounds)) : null;
 
+    // Track visibility state for pause/resume
+    let isPaused = false;
+    let isProcessing = false;
+
+    const onDiffData = (data) => {
+        queue.unshift(...filterAndGroup(data));
+    };
+
     // Initialize IndexedDB and load cached diffs, then start streaming
     diffService.init().then(() => {
         const cachedDiffs = diffService.getCached();
@@ -83,17 +92,27 @@ function init(windowLocationObj) {
             queue = filterAndGroup(cachedDiffs);
             console.log(`Loaded ${queue.length} changes from cached diffs`);
         }
-
-        // Start the diff stream
-        diffService.start((data) => {
-            queue = filterAndGroup(data);
-        }, requestingBbox);
     }).catch((err) => {
         console.warn('[DiffService] Init failed, starting without cache:', err);
-        // Start streaming anyway without cached data
-        diffService.start((data) => {
-            queue = filterAndGroup(data);
-        }, requestingBbox);
+    }).finally(() => {
+        diffService.start(onDiffData, requestingBbox);
+    });
+
+    // Pause/resume based on page visibility
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+            console.log('[Visibility] Tab hidden - pausing stream and processing');
+            isPaused = true;
+            diffService.stop();
+        } else {
+            console.log('[Visibility] Tab visible - resuming stream and processing');
+            isPaused = false;
+            diffService.start(onDiffData, requestingBbox);
+            // Restart processing loop if it's not already running
+            if (!isProcessing) {
+                processNextChange();
+            }
+        }
     });
 
     // Create maps
@@ -126,22 +145,6 @@ function init(windowLocationObj) {
         return null;
     }
 
-    // Calculate distance between two points in meters (Haversine)
-    function getDistance(p1, p2) {
-        const R = 6371000;
-        const lat1 = p1.lat * Math.PI / 180;
-        const lat2 = p2.lat * Math.PI / 180;
-        const dLat = (p2.lat - p1.lat) * Math.PI / 180;
-        const dLng = (p2.lng - p1.lng) * Math.PI / 180;
-
-        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                  Math.cos(lat1) * Math.cos(lat2) *
-                  Math.sin(dLng/2) * Math.sin(dLng/2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-
-        return R * c;
-    }
-
     // Find nearby items from the same changeset for batch drawing
     // Returns array of items to batch (including the first item)
     function findBatchItems(firstItem, firstCenter) {
@@ -159,7 +162,7 @@ function init(windowLocationObj) {
             if (!center) continue;
 
             // Check if within 1km of the first item
-            if (getDistance(firstCenter, center) <= maxDistance) {
+            if (distanceBetween(firstCenter.lat, firstCenter.lng, center.lat, center.lng) <= maxDistance) {
                 batch.push(item);
                 queue.splice(i, 1); // Remove from queue
             }
@@ -210,7 +213,15 @@ function init(windowLocationObj) {
         });
     }
 
-    function controller() {
+    function processNextChange() {
+        // Don't process while tab is hidden
+        if (isPaused) {
+            isProcessing = false;
+            return;
+        }
+
+        isProcessing = true;
+
         if (queue.length) {
             const item = queue.pop();
             const changesetId = getChangesetId(item);
@@ -248,13 +259,13 @@ function init(windowLocationObj) {
                     if (validChanges.length >= MIN_BATCH_SIZE) {
                         // Show info for first change in batch
                         ui.update(validChanges[0]);
-                        maps.drawMapElementBatch(validChanges, controller);
+                        maps.drawMapElementBatch(validChanges, processNextChange);
                     } else if (validChanges.length > 0) {
                         // Not enough valid changes for batch, draw individually
                         ui.update(validChanges[0]);
-                        maps.drawMapElement(validChanges[0], controller);
+                        maps.drawMapElement(validChanges[0], processNextChange);
                     } else {
-                        controller();
+                        processNextChange();
                     }
                     prefetchUpcoming();
                 });
@@ -267,10 +278,10 @@ function init(windowLocationObj) {
 
                     prefetched.then(({ change, skip }) => {
                         if (skip) {
-                            controller();
+                            processNextChange();
                         } else {
                             ui.update(change);
-                            maps.drawMapElement(change, controller);
+                            maps.drawMapElement(change, processNextChange);
                         }
                         prefetchUpcoming();
                     });
@@ -281,26 +292,28 @@ function init(windowLocationObj) {
                         if (isRelevant) {
                             change.enhance().then(() => {
                                 ui.update(change);
-                                maps.drawMapElement(change, controller);
+                                maps.drawMapElement(change, processNextChange);
                                 prefetchUpcoming();
                             }).catch((err) => {
                                 console.warn('Skipping change due to enhance failure:', err.message);
-                                controller();
+                                processNextChange();
                             });
                         } else {
-                            controller();
+                            processNextChange();
                         }
                     });
                 }
             }
         } else {
-            setTimeout(controller, context.runTime);
+            ui.showLoading();
+            isProcessing = false; // Not actively processing, waiting for data
+            setTimeout(processNextChange, context.runTime);
         }
     }
 
-    // Start initial prefetch and controller
+    // Start initial prefetch and playback
     prefetchUpcoming();
-    controller();
+    processNextChange();
 }
 
 function setContext(obj) {
@@ -313,7 +326,6 @@ function setContext(obj) {
     context.multi = context.multi === 'true' || context.multi === true;
     context.debug = context.debug === 'true' || context.debug === true;
 
-    // Initialize services (they handle their own caching and persistence)
     context.changesetService = new ChangesetService();
     context.changesetService.startPersisting();
 

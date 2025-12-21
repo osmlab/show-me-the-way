@@ -101,6 +101,11 @@ class DiffService {
 
         // Start osm-stream
         this.streamHandle = osmStream.runFn((err, data) => {
+            if (err) {
+                console.warn('[DiffService] Stream error, waiting for next diff:', err.message || err);
+                return;
+            }
+
             // Cache the raw diff data
             this.add(data);
 

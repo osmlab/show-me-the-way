@@ -1,5 +1,6 @@
 import { config } from './config';
 import { getRandomCity } from './cities';
+import { distanceBetween } from './utils';
 
 class Maps {
     constructor(context, bbox) {
@@ -76,10 +77,6 @@ class Maps {
 
         // Add collapsed attribution control to main map
         this.main.addControl(new maplibregl.AttributionControl({ compact: true }));
-
-        this.main.on('style.load', () => {
-            this.main.setProjection({ type: 'globe' });
-        });
 
         // Overview map for displaying the general area with geocoding details
         this.overviewMap = new maplibregl.Map({
@@ -433,19 +430,7 @@ class Maps {
 
     getDistanceFromCenter(lngLat) {
         const center = this.main.getCenter();
-        // Rough distance in meters using Haversine
-        const R = 6371000;
-        const lat1 = center.lat * Math.PI / 180;
-        const lat2 = lngLat.lat * Math.PI / 180;
-        const dLat = (lngLat.lat - center.lat) * Math.PI / 180;
-        const dLng = (lngLat.lng - center.lng) * Math.PI / 180;
-        
-        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                  Math.cos(lat1) * Math.cos(lat2) *
-                  Math.sin(dLng/2) * Math.sin(dLng/2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-        
-        return R * c;
+        return distanceBetween(center.lat, center.lng, lngLat.lat, lngLat.lng);
     }
 
     getChangeColor(type) {

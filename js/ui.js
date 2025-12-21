@@ -4,17 +4,26 @@ class Ui {
     constructor() {
         this.changesetInfo = document.getElementById('changeset_info');
         this.changesetTemplate = document.getElementById('changeset-template').innerHTML;
+        this.loading = document.getElementById('loading');
+        this.overlays = document.querySelectorAll('.overlay');
     }
 
     update(change) {
-        document.getElementById('loading').classList.add('fade-out');
-        document.querySelectorAll('.overlay').forEach((overlay) => {
+        this.loading.classList.add('fade-out');
+        this.overlays.forEach((overlay) => {
             overlay.classList.add('fade-in');
         });
 
         this._updateComment(change);
         this._updateLocation(change);
         this.changesetInfo.innerHTML = Mustache.render(this.changesetTemplate, change);
+    }
+
+    showLoading() {
+        this.loading.classList.remove('fade-out');
+        this.overlays.forEach((overlay) => {
+            overlay.classList.remove('fade-in');
+        });
     }
 
     _updateComment(change) {
