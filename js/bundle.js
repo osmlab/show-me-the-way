@@ -3800,9 +3800,6 @@
         attributionControl: false
       });
       this.main.addControl(new maplibregl.AttributionControl({ compact: true }));
-      this.main.on("style.load", () => {
-        this.main.setProjection({ type: "globe" });
-      });
       this.overviewMap = new maplibregl.Map({
         container: "overview_map",
         style: overviewStyle,
@@ -4085,14 +4082,7 @@
     }
     getDistanceFromCenter(lngLat) {
       const center = this.main.getCenter();
-      const R = 6371e3;
-      const lat1 = center.lat * Math.PI / 180;
-      const lat2 = lngLat.lat * Math.PI / 180;
-      const dLat = (lngLat.lat - center.lat) * Math.PI / 180;
-      const dLng = (lngLat.lng - center.lng) * Math.PI / 180;
-      const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-      return R * c;
+      return distanceBetween(center.lat, center.lng, lngLat.lat, lngLat.lng);
     }
     getChangeColor(type2) {
       return {
@@ -4754,15 +4744,23 @@
     constructor() {
       this.changesetInfo = document.getElementById("changeset_info");
       this.changesetTemplate = document.getElementById("changeset-template").innerHTML;
+      this.loading = document.getElementById("loading");
+      this.overlays = document.querySelectorAll(".overlay");
     }
     update(change) {
-      document.getElementById("loading").classList.add("fade-out");
-      document.querySelectorAll(".overlay").forEach((overlay) => {
+      this.loading.classList.add("fade-out");
+      this.overlays.forEach((overlay) => {
         overlay.classList.add("fade-in");
       });
       this._updateComment(change);
       this._updateLocation(change);
       this.changesetInfo.innerHTML = mustache_default.render(this.changesetTemplate, change);
+    }
+    showLoading() {
+      this.loading.classList.remove("fade-out");
+      this.overlays.forEach((overlay) => {
+        overlay.classList.remove("fade-in");
+      });
     }
     _updateComment(change) {
       document.getElementById("comment").textContent = change.meta.comment + " in " + change.meta.createdBy;
@@ -4965,6 +4963,10 @@
         this.cullIntervalId = setInterval(() => this.cull(), CULL_INTERVAL_MS);
       }
       this.streamHandle = import_osm_stream.default.runFn((err, data) => {
+        if (err) {
+          console.warn("[DiffService] Stream error, waiting for next diff:", err.message || err);
+          return;
+        }
         this.add(data);
         onData(data);
       }, null, null, bbox, MAX_RETRIES);
@@ -6791,20 +6793,35 @@
     };
     const diffService = new DiffService();
     const requestingBbox = context.bounds != config.bounds && isBboxSizeAcceptable(bbox) ? makeBboxString(makeBbox(context.bounds)) : null;
+    let isPaused = false;
+    let isProcessing = false;
+    const onDiffData = (data) => {
+      queue.unshift(...filterAndGroup(data));
+    };
     diffService.init().then(() => {
       const cachedDiffs = diffService.getCached();
       if (cachedDiffs.length) {
         queue = filterAndGroup(cachedDiffs);
         console.log(`Loaded ${queue.length} changes from cached diffs`);
       }
-      diffService.start((data) => {
-        queue = filterAndGroup(data);
-      }, requestingBbox);
     }).catch((err) => {
       console.warn("[DiffService] Init failed, starting without cache:", err);
-      diffService.start((data) => {
-        queue = filterAndGroup(data);
-      }, requestingBbox);
+    }).finally(() => {
+      diffService.start(onDiffData, requestingBbox);
+    });
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) {
+        console.log("[Visibility] Tab hidden - pausing stream and processing");
+        isPaused = true;
+        diffService.stop();
+      } else {
+        console.log("[Visibility] Tab visible - resuming stream and processing");
+        isPaused = false;
+        diffService.start(onDiffData, requestingBbox);
+        if (!isProcessing) {
+          processNextChange();
+        }
+      }
     });
     const maps = new Maps(context, bbox);
     const sidebar = new Sidebar(hashParams, windowLocationObj, context);
@@ -6825,16 +6842,6 @@
       }
       return null;
     }
-    function getDistance(p1, p2) {
-      const R = 6371e3;
-      const lat1 = p1.lat * Math.PI / 180;
-      const lat2 = p2.lat * Math.PI / 180;
-      const dLat = (p2.lat - p1.lat) * Math.PI / 180;
-      const dLng = (p2.lng - p1.lng) * Math.PI / 180;
-      const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-      return R * c;
-    }
     function findBatchItems(firstItem, firstCenter) {
       const changesetId = getChangesetId(firstItem);
       const batch = [firstItem];
@@ -6845,7 +6852,7 @@
         if (getChangesetId(item) !== changesetId) continue;
         const center = getItemCenter(item);
         if (!center) continue;
-        if (getDistance(firstCenter, center) <= maxDistance) {
+        if (distanceBetween(firstCenter.lat, firstCenter.lng, center.lat, center.lng) <= maxDistance) {
           batch.push(item);
           queue.splice(i, 1);
         }
@@ -6884,7 +6891,12 @@
         console.log(`[Prefetch] Started prefetch for changeset ${changesetId}`);
       });
     }
-    function controller() {
+    function processNextChange() {
+      if (isPaused) {
+        isProcessing = false;
+        return;
+      }
+      isProcessing = true;
       if (queue.length) {
         const item = queue.pop();
         const changesetId = getChangesetId(item);
@@ -6914,12 +6926,12 @@
             const validChanges = changes.filter((c) => c !== null);
             if (validChanges.length >= MIN_BATCH_SIZE) {
               ui.update(validChanges[0]);
-              maps.drawMapElementBatch(validChanges, controller);
+              maps.drawMapElementBatch(validChanges, processNextChange);
             } else if (validChanges.length > 0) {
               ui.update(validChanges[0]);
-              maps.drawMapElement(validChanges[0], controller);
+              maps.drawMapElement(validChanges[0], processNextChange);
             } else {
-              controller();
+              processNextChange();
             }
             prefetchUpcoming();
           });
@@ -6930,10 +6942,10 @@
             console.log(`[Prefetch] Using prefetched result for changeset ${changesetId}`);
             prefetched.then(({ change, skip }) => {
               if (skip) {
-                controller();
+                processNextChange();
               } else {
                 ui.update(change);
-                maps.drawMapElement(change, controller);
+                maps.drawMapElement(change, processNextChange);
               }
               prefetchUpcoming();
             });
@@ -6943,24 +6955,26 @@
               if (isRelevant) {
                 change.enhance().then(() => {
                   ui.update(change);
-                  maps.drawMapElement(change, controller);
+                  maps.drawMapElement(change, processNextChange);
                   prefetchUpcoming();
                 }).catch((err) => {
                   console.warn("Skipping change due to enhance failure:", err.message);
-                  controller();
+                  processNextChange();
                 });
               } else {
-                controller();
+                processNextChange();
               }
             });
           }
         }
       } else {
-        setTimeout(controller, context.runTime);
+        ui.showLoading();
+        isProcessing = false;
+        setTimeout(processNextChange, context.runTime);
       }
     }
     prefetchUpcoming();
-    controller();
+    processNextChange();
   }
   function setContext(obj) {
     const comment = obj.comment || config.comment;
