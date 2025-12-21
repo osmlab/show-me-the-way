@@ -76,6 +76,14 @@ function init(windowLocationObj) {
     const requestingBbox = (context.bounds != config.bounds) && isBboxSizeAcceptable(bbox)
         ? makeBboxString(makeBbox(context.bounds)) : null;
 
+    // Track visibility state for pause/resume
+    let isPaused = false;
+    let isProcessing = false;
+
+    const onDiffData = (data) => {
+        queue.unshift(...filterAndGroup(data));
+    };
+
     // Initialize IndexedDB and load cached diffs, then start streaming
     diffService.init().then(() => {
         const cachedDiffs = diffService.getCached();
@@ -86,9 +94,24 @@ function init(windowLocationObj) {
     }).catch((err) => {
         console.warn('[DiffService] Init failed, starting without cache:', err);
     }).finally(() => {
-        diffService.start((data) => {
-            queue.unshift(...filterAndGroup(data));
-        }, requestingBbox);
+        diffService.start(onDiffData, requestingBbox);
+    });
+
+    // Pause/resume based on page visibility
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+            console.log('[Visibility] Tab hidden - pausing stream and processing');
+            isPaused = true;
+            diffService.stop();
+        } else {
+            console.log('[Visibility] Tab visible - resuming stream and processing');
+            isPaused = false;
+            diffService.start(onDiffData, requestingBbox);
+            // Restart processing loop if it's not already running
+            if (!isProcessing) {
+                processNextChange();
+            }
+        }
     });
 
     // Create maps
@@ -206,6 +229,14 @@ function init(windowLocationObj) {
     }
 
     function processNextChange() {
+        // Don't process while tab is hidden
+        if (isPaused) {
+            isProcessing = false;
+            return;
+        }
+
+        isProcessing = true;
+
         if (queue.length) {
             const item = queue.pop();
             const changesetId = getChangesetId(item);
@@ -290,6 +321,7 @@ function init(windowLocationObj) {
             }
         } else {
             ui.showLoading();
+            isProcessing = false; // Not actively processing, waiting for data
             setTimeout(processNextChange, context.runTime);
         }
     }
