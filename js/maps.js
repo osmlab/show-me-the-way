@@ -78,10 +78,6 @@ class Maps {
         // Add collapsed attribution control to main map
         this.main.addControl(new maplibregl.AttributionControl({ compact: true }));
 
-        this.main.on('style.load', () => {
-            this.main.setProjection({ type: 'globe' });
-        });
-
         // Overview map for displaying the general area with geocoding details
         this.overviewMap = new maplibregl.Map({
             container: 'overview_map',
