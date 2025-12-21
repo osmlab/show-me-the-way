@@ -205,7 +205,7 @@ function init(windowLocationObj) {
         });
     }
 
-    function controller() {
+    function processNextChange() {
         if (queue.length) {
             const item = queue.pop();
             const changesetId = getChangesetId(item);
@@ -243,13 +243,13 @@ function init(windowLocationObj) {
                     if (validChanges.length >= MIN_BATCH_SIZE) {
                         // Show info for first change in batch
                         ui.update(validChanges[0]);
-                        maps.drawMapElementBatch(validChanges, controller);
+                        maps.drawMapElementBatch(validChanges, processNextChange);
                     } else if (validChanges.length > 0) {
                         // Not enough valid changes for batch, draw individually
                         ui.update(validChanges[0]);
-                        maps.drawMapElement(validChanges[0], controller);
+                        maps.drawMapElement(validChanges[0], processNextChange);
                     } else {
-                        controller();
+                        processNextChange();
                     }
                     prefetchUpcoming();
                 });
@@ -262,10 +262,10 @@ function init(windowLocationObj) {
 
                     prefetched.then(({ change, skip }) => {
                         if (skip) {
-                            controller();
+                            processNextChange();
                         } else {
                             ui.update(change);
-                            maps.drawMapElement(change, controller);
+                            maps.drawMapElement(change, processNextChange);
                         }
                         prefetchUpcoming();
                     });
@@ -276,26 +276,27 @@ function init(windowLocationObj) {
                         if (isRelevant) {
                             change.enhance().then(() => {
                                 ui.update(change);
-                                maps.drawMapElement(change, controller);
+                                maps.drawMapElement(change, processNextChange);
                                 prefetchUpcoming();
                             }).catch((err) => {
                                 console.warn('Skipping change due to enhance failure:', err.message);
-                                controller();
+                                processNextChange();
                             });
                         } else {
-                            controller();
+                            processNextChange();
                         }
                     });
                 }
             }
         } else {
-            setTimeout(controller, context.runTime);
+            ui.showLoading();
+            setTimeout(processNextChange, context.runTime);
         }
     }
 
-    // Start initial prefetch and controller
+    // Start initial prefetch and playback
     prefetchUpcoming();
-    controller();
+    processNextChange();
 }
 
 function setContext(obj) {
@@ -308,7 +309,6 @@ function setContext(obj) {
     context.multi = context.multi === 'true' || context.multi === true;
     context.debug = context.debug === 'true' || context.debug === true;
 
-    // Initialize services (they handle their own caching and persistence)
     context.changesetService = new ChangesetService();
     context.changesetService.startPersisting();
 
