@@ -22,7 +22,7 @@
   },
   "devDependencies": {
     "concurrently": "^9.1.2",
-    "esbuild": "^0.27.1",
+    "esbuild": "^0.28.1",
     "eslint": "^8.18.0",
     "serve": "^14.2.4"
   },
